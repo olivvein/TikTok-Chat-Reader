@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok LIVE Chat Reader (Demo)</title>
+    <title>Lecteur de Chat TikTok LIVE (Démo)</title>
 
-    <meta name="description" content="A chat reader for TikTok LIVE utilizing TikTok-Live-Connector and Socket.IO to forward the data to the client. This demo project uses the unofficial TikTok API to retrieve chat comments, gifts and other events from TikTok LIVE.">
+    <meta name="description" content="Un lecteur de chat pour TikTok LIVE utilisant TikTok-Live-Connector et Socket.IO pour transmettre les données au client. Ce projet de démonstration utilise l'API non officielle de TikTok pour récupérer les commentaires du chat, les cadeaux et d'autres événements de TikTok LIVE.">
     <meta name="keywords" content="TikTok,Live,Livestream,Chat,Reader,Scraper,Tracker,tiktok.com,broadcast,api,library,node,node.js,javascript">
 
     <link rel="stylesheet" href="style.css">
@@ -17,34 +17,180 @@
     <script src="connection.js"></script>
     <script src="app.js"></script>
 
+    <!-- Audio element for notification sounds -->
+    <audio id="flaggedCommentSound" preload="auto" autoplay="true">
+        <source src="https://www.soundjay.com/misc/small-bell-ring-01a.mp3" type="audio/mpeg">
+        <!-- Fallback sound URL if the above doesn't work -->
+    </audio>
+
     <script>
         function generateOverlay() {
             let username = $('#uniqueIdInput').val();
-            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em`;
+            let showModeration = $('#showModerationToggle').is(':checked') ? 1 : 0;
+            let showResponses = $('#showResponsesToggle').is(':checked') ? 1 : 0;
+            let enableSound = $('#enableSoundToggle').is(':checked') ? 1 : 0;
+            let enableMentionNotification = $('#enableMentionNotification').is(':checked') ? 1 : 0;
+            let enableModerationNotification = $('#enableModerationNotification').is(':checked') ? 1 : 0;
+            let yourUsername = $('#yourUsernameInput').val();
+            let aiProvider = $('input[name="aiProvider"]:checked').val();
+            let aiModel = $('#ollamaModel').val();
+            let openaiApiKey = $('#openaiApiKey').val();
+            
+            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&showModeration=${showModeration}&showResponses=${showResponses}&enableSound=${enableSound}&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em&aiProvider=${aiProvider}`;
+            
+            // Add model parameter if Ollama is selected
+            if (aiProvider === 'ollama' && aiModel) {
+                url += `&aiModel=${encodeURIComponent(aiModel)}`;
+            }
+            
+            // Add OpenAI API key if OpenAI is selected and key is provided
+            if (aiProvider === 'openai' && openaiApiKey) {
+                url += `&openaiApiKey=${encodeURIComponent(openaiApiKey)}`;
+            }
+            
+            // Add notifications settings
+            if (enableMentionNotification) {
+                url += `&enableMentionNotification=1`;
+            }
+            
+            if (enableModerationNotification) {
+                url += `&enableModerationNotification=1`;
+            }
+            
+            // Add the user's username for mentions if provided
+            if (yourUsername) {
+                url += `&yourUsername=${encodeURIComponent(yourUsername)}`;
+            }
         
-            if(username) {
+            if (username) {
                 window.open(url, '_blank');
             } else {
-                alert("Enter username");
+                alert("Entrez un nom d'utilisateur");
             }
         }
+        
+        // Toggle API key field visibility based on AI provider selection
+        $(document).ready(function() {
+            // Initial setup based on default selection
+            updateApiKeyVisibility();
+            
+            // Handle changes to the AI provider radio buttons
+            $('input[name="aiProvider"]').change(function() {
+                updateApiKeyVisibility();
+            });
+            
+            function updateApiKeyVisibility() {
+                const selectedProvider = $('input[name="aiProvider"]:checked').val();
+                
+                if (selectedProvider === 'openai') {
+                    $('#openaiSettings').show();
+                    $('#ollamaSettings').hide();
+                } else {
+                    $('#openaiSettings').hide();
+                    $('#ollamaSettings').show();
+                }
+            }
+        });
     </script>
 </head>
 <body>
-    <div class="head">
-        <h1>TikTok LIVE Chat Reader</h1>
-        <span class="subTitle">Source: <a href="https://github.com/zerodytrash/TikTok-Chat-Reader">https://github.com/zerodytrash/TikTok-Chat-Reader</a></span>      
+    
+
+    <div id="notification-container">
+        <!-- Notifications will appear here -->
     </div>
 
-    <div>
-        A chat reader for <a href="https://www.tiktok.com/live">TikTok LIVE</a> utilizing <a href="https://github.com/zerodytrash/TikTok-Live-Connector">TikTok-Live-Connector</a> and <a href="https://socket.io/">Socket.IO</a> to forward the data to the client. More Tools available at <a href="https://tikfinity.zerody.one/" target="_blank">TikFinity</a>.
-    </div>
+    
 
     <div class="inputFields">
-        <p>Enter the <b>@username</b> of a user who is currently live:</p>
+        <p>Entrez le <b>@nom d'utilisateur</b> d'une personne actuellement en direct :</p>
         <input type="text" id="uniqueIdInput">
-        <input type="button" id="connectButton" value="connect">
-        <a href="#" onclick="generateOverlay()">Generate Overlay URL</a>
+        <input type="button" id="connectButton" value="Connecter">
+        <a href="#" onclick="generateOverlay()">Générer l'URL de superposition</a>
+        
+        <p>Entrez <b>votre</b> nom d'utilisateur TikTok (pour recevoir des notifications quand vous êtes mentionné) :</p>
+        <input type="text" id="yourUsernameInput" placeholder="Votre nom d'utilisateur TikTok">
+        
+        <!-- AI Provider Selection -->
+        <div class="ai-settings">
+            <h3>Fournisseur de Réponses IA</h3>
+            <div class="provider-selection">
+                <label>
+                    <input type="radio" name="aiProvider" value="openai" checked> OpenAI
+                </label>
+                <label>
+                    <input type="radio" name="aiProvider" value="ollama"> Ollama
+                </label>
+            </div>
+            
+            <!-- OpenAI Settings (shown by default) -->
+            <div id="openaiSettings" class="provider-settings">
+                <label for="openaiApiKey">Votre clé API OpenAI:</label>
+                <input type="password" id="openaiApiKey" placeholder="sk-...">
+                <p class="info-text">Utilisation du modèle GPT-4o-mini d'OpenAI</p>
+                <p class="info-text">Vous devez fournir votre propre clé API OpenAI. Vous pouvez en obtenir une sur <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.</p>
+            </div>
+            
+            <!-- Ollama Settings (hidden by default) -->
+            <div id="ollamaSettings" class="provider-settings" style="display: none;">
+                <label for="ollamaModel">Sélectionnez un modèle Ollama :</label>
+                <select id="ollamaModel">
+                    <option value="">Chargement des modèles...</option>
+                </select>
+                <p class="info-text ollamaStatus">Vérification de la connexion au serveur Ollama...</p>
+                <p class="info-text">Note : Tout contenu <code>&lt;thinking&gt;</code> du modèle sera filtré des réponses.</p>
+            </div>
+        </div>
+
+        <!-- Feature Toggles -->
+        <div class="feature-settings">
+            <h3>Paramètres des Fonctionnalités</h3>
+            
+            <!-- Moderation Toggle -->
+            <div class="feature-toggle">
+                <label>
+                    <input type="checkbox" id="showModerationToggle"> Activer la modération de contenu
+                </label>
+                <p class="info-text">Analyser les messages pour détecter le contenu inapproprié</p>
+            </div>
+            
+            <!-- AI Responses Toggle -->
+            <div class="feature-toggle">
+                <label>
+                    <input type="checkbox" id="showResponsesToggle"> Activer les réponses suggérées par l'IA
+                </label>
+                <p class="info-text">Générer des réponses automatiques aux messages</p>
+            </div>
+            
+            <!-- Notifications Settings -->
+            <div class="notification-settings">
+                <h4>Notifications</h4>
+                
+                <!-- Username Mention Notification Toggle -->
+                <div class="feature-toggle">
+                    <label>
+                        <input type="checkbox" id="enableMentionNotification" checked> Notifications de mention d'utilisateur
+                    </label>
+                    <p class="info-text">Recevoir une notification lorsque votre nom d'utilisateur est mentionné</p>
+                </div>
+                
+                <!-- Moderation Alert Notification Toggle -->
+                <div class="feature-toggle">
+                    <label>
+                        <input type="checkbox" id="enableModerationNotification" checked> Alertes de modération
+                    </label>
+                    <p class="info-text">Recevoir une notification pour les messages signalés</p>
+                </div>
+                
+                <!-- Sound Notification Toggle -->
+                <div class="feature-toggle">
+                    <label>
+                        <input type="checkbox" id="enableSoundToggle"> Activer les sons de notification
+                    </label>
+                    <p class="info-text">Jouer un son lors des notifications</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <table class="splitstatetable">
@@ -62,12 +208,12 @@
         <tr>
             <td>
                 <div class="chatcontainer">
-                    <h3 class="containerheader">Chats</h3>
+                    <h3 class="containerheader">Messages</h3>
                 </div>
             </td>
             <td>
                 <div class="giftcontainer">
-                    <h3 class="containerheader">Gifts</h3>
+                    <h3 class="containerheader">Cadeaux</h3>
                 </div>
             </td>
         </tr>

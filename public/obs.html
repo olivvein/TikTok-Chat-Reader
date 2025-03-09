@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OBS Overlay</title>
+    <title>Superposition OBS</title>
 
     <link rel="stylesheet" href="style.css">
 
@@ -26,10 +26,60 @@
         .eventcontainer > div {
             margin-top: 5px;
         }
+        
+        /* Custom moderation styles for OBS */
+        .moderation-info {
+            margin-top: 2px;
+            margin-bottom: 5px;
+        }
+        
+        .moderation-flagged {
+            background-color: rgba(255, 0, 0, 0.2);
+        }
+        
+        .moderation-safe {
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+        
+        /* Custom AI response styles for OBS */
+        .response-info {
+            margin-top: 2px;
+            margin-bottom: 5px;
+            background-color: rgba(100, 100, 255, 0.15);
+        }
+        
+        /* Loading spinner styles for OBS */
+        .loading-spinner {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            margin-left: 5px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 0.8em;
+            color: #999;
+            font-style: italic;
+        }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- Audio element for notification sounds -->
+    <audio id="flaggedCommentSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3" type="audio/mpeg">
+        <!-- Fallback sound URL if the above doesn't work -->
+        <source src="https://www.soundjay.com/buttons/sounds/button-09.mp3" type="audio/mpeg">
+    </audio>
 
     <script>
         window.settings = Object.fromEntries(new URLSearchParams(location.search));
@@ -45,6 +95,30 @@
 
             if (window.settings.fontSize) {
                 $('body').css('font-size', window.settings.fontSize);
+            }
+            
+            // Enable moderation display if requested
+            if (window.settings.showModeration === "1") {
+                $('body').addClass('show-moderation');
+            }
+            
+            // Enable AI responses display if requested
+            if (window.settings.showResponses === "1") {
+                $('body').addClass('show-responses');
+            }
+            
+            // Enable sound notifications if requested
+            if (window.settings.enableSound === "1") {
+                enableSoundNotifications = true;
+            }
+            
+            // Set AI provider and model if specified
+            if (window.settings.aiProvider) {
+                aiProvider = window.settings.aiProvider;
+            }
+            
+            if (window.settings.aiModel) {
+                aiModel = window.settings.aiModel;
             }
         })
     </script>
