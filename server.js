@@ -339,7 +339,10 @@ io.on('connection', (socket) => {
                         console.log('No moderation result');
                     }
                 } else if (socket.showModeration && (socket.openaiApiKey || process.env.OPENAI_API_KEY)) {
+                    console.log('Moderation with OpenAI');
+                    console.log(msg.comment);
                     const moderationResult = await moderateText(msg.comment, socket.openaiApiKey || process.env.OPENAI_API_KEY);
+                    console.log(moderationResult);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
                         
@@ -365,6 +368,7 @@ io.on('connection', (socket) => {
             try {
                 //console.log(msg);
                 if (socket.showResponses) {
+                    console.log('Generating response');
                     let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
                     // if msg comment start with @[username] make nickname à écrit à [username] : comment
                     if (msg.comment.startsWith('@')) {
@@ -379,6 +383,8 @@ io.on('connection', (socket) => {
                     );
                     if (suggestedResponse) {
                         msg.suggestedResponse = suggestedResponse;
+
+                        console.log(msg.suggestedResponse);
                     }
                 }
             } catch (error) {

@@ -35,8 +35,9 @@
             let aiProvider = $('input[name="aiProvider"]:checked').val();
             let aiModel = $('#ollamaModel').val();
             let openaiApiKey = $('#openaiApiKey').val();
+            let darkTheme = $('#darkThemeToggle').is(':checked') ? 1 : 0;
             
-            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&showModeration=${showModeration}&showResponses=${showResponses}&enableSound=${enableSound}&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em&aiProvider=${aiProvider}`;
+            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&showModeration=${showModeration}&showResponses=${showResponses}&enableSound=${enableSound}&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em&aiProvider=${aiProvider}&darkTheme=${darkTheme}`;
             
             // Add model parameter if Ollama is selected
             if (aiProvider === 'ollama' && aiModel) {
@@ -77,6 +78,24 @@
             // Handle changes to the AI provider radio buttons
             $('input[name="aiProvider"]').change(function() {
                 updateApiKeyVisibility();
+            });
+            
+            // Check for saved theme preference
+            const savedTheme = localStorage.getItem('darkTheme');
+            if (savedTheme === 'true') {
+                $('body').addClass('dark-theme');
+                $('#darkThemeToggle').prop('checked', true);
+            }
+            
+            // Handle dark theme toggle
+            $('#darkThemeToggle').change(function() {
+                if ($(this).is(':checked')) {
+                    $('body').addClass('dark-theme');
+                    localStorage.setItem('darkTheme', 'true');
+                } else {
+                    $('body').removeClass('dark-theme');
+                    localStorage.setItem('darkTheme', 'false');
+                }
             });
             
             function updateApiKeyVisibility() {
@@ -316,6 +335,19 @@
                         <input type="checkbox" id="enableSoundToggle"> Activer les sons de notification
                     </label>
                     <p class="info-text">Jouer un son lors des notifications</p>
+                </div>
+            </div>
+            
+            <!-- Theme Settings -->
+            <div class="theme-settings">
+                <h4>Apparence</h4>
+                
+                <!-- Dark Theme Toggle -->
+                <div class="feature-toggle">
+                    <label>
+                        <input type="checkbox" id="darkThemeToggle"> Mode sombre
+                    </label>
+                    <p class="info-text">Activer l'apparence sombre de l'application</p>
                 </div>
             </div>
         </div>

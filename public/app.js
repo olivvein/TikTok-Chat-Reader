@@ -73,23 +73,24 @@ function showMentionNotification(data, text) {
     // Create notification element
     const notification = $(`
         <div class="notification mention">
+            <button class="notification-close" title="Fermer"></button>
             <div class="notification-title">Vous avez été mentionné par ${data.uniqueId}</div>
             <div class="notification-message">${sanitize(text)}</div>
         </div>
     `);
+    
+    // Add close button functionality
+    notification.find('.notification-close').on('click', function() {
+        notification.fadeOut(300, function() {
+            $(this).remove();
+        });
+    });
     
     // Add to notification container
     $('#notification-container').append(notification);
     
     // Play sound
     playFlaggedCommentSound(true);
-    
-    // Rester visible pendant 7 secondes, puis fondu de sortie lent
-    setTimeout(() => {
-        notification.fadeOut(1500, function() {
-            $(this).remove();
-        });
-    }, 7000); // 7 secondes au total (5.5s pleine visibilité + ~1.5s de fondu)
 }
 
 // Function to show notification for moderated content
@@ -109,24 +110,25 @@ function showModerationNotification(data, text, moderationResult) {
     // Create notification element
     const notification = $(`
         <div class="notification moderation">
+            <button class="notification-close" title="Fermer"></button>
             <div class="notification-title">Contenu inapproprié détecté de ${data.uniqueId}</div>
             <div class="notification-message">${sanitize(text)}</div>
             <div class="notification-reason">Raison: ${reason || 'Non spécifiée'}</div>
         </div>
     `);
     
+    // Add close button functionality
+    notification.find('.notification-close').on('click', function() {
+        notification.fadeOut(300, function() {
+            $(this).remove();
+        });
+    });
+    
     // Add to notification container
     $('#notification-container').append(notification);
     
     // Play sound
     playFlaggedCommentSound(true);
-    
-    // Rester visible plus longtemps car contenu important, puis fondu de sortie lent
-    setTimeout(() => {
-        notification.fadeOut(1500, function() {
-            $(this).remove();
-        });
-    }, 10000); // 10 secondes au total (8.5s pleine visibilité + ~1.5s de fondu)
 }
 
 // Function to update moderation stats
@@ -185,6 +187,9 @@ $(document).ready(() => {
         }
     });
     
+    // Setup notification container with clear button
+    setupNotifications();
+    
     // AI Provider Selection
     $('input[name="aiProvider"]').change(function() {
         aiProvider = $(this).val();
@@ -225,6 +230,24 @@ $(document).ready(() => {
         enableSoundNotifications = $(this).is(':checked');
     });
     
+    // Dark theme toggle handler
+    $('#darkThemeToggle').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('body').addClass('dark-theme');
+            localStorage.setItem('darkTheme', 'true');
+        } else {
+            $('body').removeClass('dark-theme');
+            localStorage.setItem('darkTheme', 'false');
+        }
+    });
+    
+    // Apply dark theme from local storage if saved
+    const savedTheme = localStorage.getItem('darkTheme');
+    if (savedTheme === 'true') {
+        $('body').addClass('dark-theme');
+        $('#darkThemeToggle').prop('checked', true);
+    }
+    
     // Initialize values from URL parameters (for OBS overlay)
     if (window.settings.showModeration !== undefined) {
         showModerationResults = !!window.settings.showModeration;
@@ -254,6 +277,15 @@ $(document).ready(() => {
     if (window.settings.yourUsername !== undefined) {
         yourUsername = window.settings.yourUsername;
         $('#yourUsernameInput').val(yourUsername);
+    }
+    
+    // Apply dark theme from URL parameter (for OBS overlay)
+    if (window.settings.darkTheme !== undefined) {
+        const darkTheme = !!parseInt(window.settings.darkTheme);
+        if (darkTheme) {
+            $('body').addClass('dark-theme');
+            $('#darkThemeToggle').prop('checked', true);
+        }
     }
     
     // Handle Ollama model selection
@@ -526,6 +558,8 @@ function addChatItem(color, data, text, summarize) {
                 <span>
                     <b>${generateUsernameLink(data)}:</b> <span class="comment-text">${text}</span>
                 </span>
+                ${data.moderation || data.pendingModeration ? '<a href="#" class="moderation-toggle">[Modération]</a>' : ''}
+                ${data.suggestedResponse || data.pendingResponse ? '<a href="#" class="response-toggle">[Réponse IA]</a>' : ''}
             </div>
         </div>
     `;
@@ -540,7 +574,7 @@ function addChatItem(color, data, text, summarize) {
     // Add moderation info if available
     if (data.moderation) {
         let moderationClass = data.moderation.flagged ? 'moderation-flagged' : 'moderation-safe';
-        let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}"></div>`);
+        let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}" style="display:none;"></div>`);
         
         // Calculate the sum of all category scores
         let totalScore = 0;
@@ -612,11 +646,14 @@ function addChatItem(color, data, text, summarize) {
             <div class="loading-text">Analyse de modération en cours...</div>
         </div>`);
         chatDiv.append(loadingDiv);
+        
+        // Update the toggle to show loading status
+        chatDiv.find('.moderation-toggle').addClass('loading').html('[Modération...]');
     }
 
     // Add suggested response if available
     if (data.suggestedResponse) {
-        let responseInfoDiv = $(`<div class="response-info"><strong>Réponse suggérée par l'IA :</strong> <p>${sanitize(data.suggestedResponse)}</p></div>`);
+        let responseInfoDiv = $(`<div class="response-info" style="display:none;"><strong>Réponse suggérée par l'IA :</strong> <p>${sanitize(data.suggestedResponse)}</p></div>`);
         chatDiv.append(responseInfoDiv);
         
         // Add click handler for the response toggle
@@ -630,6 +667,9 @@ function addChatItem(color, data, text, summarize) {
             <div class="loading-text">Génération de la réponse IA en cours...</div>
         </div>`);
         chatDiv.append(loadingDiv);
+        
+        // Update the toggle to show loading status
+        chatDiv.find('.response-toggle').addClass('loading').html('[Réponse IA...]');
     }
 
     container.append(chatDiv);
@@ -900,15 +940,21 @@ function moveToFriend(tiktokId, nickname) {
 
 // Show notification
 function showNotification(message) {
-    const notification = $(`<div class="notification">${message}</div>`);
-    $('#notification-container').append(notification);
+    const notification = $(`
+        <div class="notification">
+            <button class="notification-close" title="Fermer"></button>
+            ${message}
+        </div>
+    `);
     
-    // Rester visible pendant 4 secondes, puis fondu de sortie lent
-    setTimeout(() => {
-        notification.fadeOut(1500, function() {
+    // Add close button functionality
+    notification.find('.notification-close').on('click', function() {
+        notification.fadeOut(300, function() {
             $(this).remove();
         });
-    }, 7000); // 7 secondes au total (4s pleine visibilité + ~3s de fondu)
+    });
+    
+    $('#notification-container').append(notification);
 }
 
 // Show a notification when a friend or undesirable joins
@@ -919,6 +965,7 @@ function showJoinNotification(data, userType) {
     
     const notification = $(`
         <div class="notification ${notificationClass}">
+            <button class="notification-close" title="Fermer"></button>
             <div class="notification-title">${notificationTitle}</div>
             <div class="notification-message">
                 <b>${name}</b> (@${data.uniqueId}) a rejoint le chat
@@ -926,14 +973,14 @@ function showJoinNotification(data, userType) {
         </div>
     `);
     
-    $('#notification-container').append(notification);
-    
-    // Rester visible pendant 4 secondes, puis fondu de sortie lent
-    setTimeout(() => {
-        notification.fadeOut(1500, function() {
+    // Add close button functionality
+    notification.find('.notification-close').on('click', function() {
+        notification.fadeOut(300, function() {
             $(this).remove();
         });
-    }, 7000); // 7 secondes au total (4s pleine visibilité + ~3s de fondu)
+    });
+    
+    $('#notification-container').append(notification);
     
     // Play sound if enabled
     if (enableSoundNotifications) {
@@ -1068,103 +1115,123 @@ connection.on('chat', (msg) => {
 // Handle chat updates (moderation and suggested responses)
 connection.on('chatUpdate', (update) => {
     if (window.settings.showChats === "0") return;
-    
+    console.log('Chat update');
+    console.log(update.type);
     const msgId = update.id;
     const chatDiv = $(`.chatcontainer div[data-msg-id="${msgId}"], .eventcontainer div[data-msg-id="${msgId}"]`);
     
-    if (!chatDiv.length) return;
+    if (!chatDiv.length) {
+        console.log('No chat div found');
+        return;
+    }
     
     if (update.type === 'moderation') {
         // Update moderation
         const moderationToggle = chatDiv.find('.moderation-toggle');
-        if (moderationToggle.length) {
+        console.log('Moderation toggle');
+        console.log(moderationToggle.length);
+        
+        // If no toggle exists, create one
+        if (moderationToggle.length === 0) {
+            const chatItemDiv = chatDiv.find('.chatitem > div > span');
+            chatItemDiv.append('<a href="#" class="moderation-toggle">[Modération]</a>');
+        } else {
             // Replace loading indicator with regular moderation toggle
             moderationToggle.removeClass('loading');
             moderationToggle.html('[Modération]');
+        }
+        
+        // Remove any existing moderation info
+        chatDiv.find('.moderation-info').remove();
+        
+        // Add moderation info if available
+        if (update.data.moderation) {
+            console.log('Moderation info');
+            console.log(update.data.moderation);
+            let moderationClass = update.data.moderation.flagged ? 'moderation-flagged' : 'moderation-safe';
+            let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}" style="display:none;"></div>`);
             
-            // Remove any existing moderation info
-            chatDiv.find('.moderation-info').remove();
-            
-            // Add moderation info if available
-            if (update.data.moderation) {
-                let moderationClass = update.data.moderation.flagged ? 'moderation-flagged' : 'moderation-safe';
-                let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}"></div>`);
-                
-                // Calculate the sum of all category scores
-                let totalScore = 0;
-                for (const score of Object.values(update.data.moderation.category_scores)) {
-                    totalScore += score;
-                }
-                
-                // Add flagged status with badge and total score
-                moderationInfoDiv.append(`
-                    <div>
-                        <strong>${update.data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong>
-                        <span class="moderation-total-score">(Score total: ${totalScore.toFixed(2)})</span>
-                        <span class="moderation-badge ${update.data.moderation.flagged ? 'flagged' : 'safe'}">
-                            ${update.data.moderation.flagged ? '⚠️' : '✓'}
-                        </span>
-                    </div>
-                `);
-                
-                // Handle flagged content notifications
-                if (update.data.moderation.flagged) {
-                    // Play notification sound for flagged comments
-                    playFlaggedCommentSound();
-                    
-                    // Show moderation notification if enabled
-                    if (enableModerationNotifications) {
-                        showModerationNotification(update.data, update.data.comment, update.data.moderation);
-                    }
-                }
-                
-                // Add Ollama reason if available and flagged
-                if (update.data.moderation.flagged && update.data.moderation.ollama_reason) {
-                    moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${update.data.moderation.ollama_reason}</div>`);
-                }
-                
-                // Add category information for ALL messages (not just flagged ones)
-                let categoriesDiv = $('<div class="moderation-categories"></div>');
-                let hasCategories = false;
-                
-                for (const [category, score] of Object.entries(update.data.moderation.category_scores)) {
-                    const formattedScore = score.toFixed(2);
-                    const isFlagged = update.data.moderation.categories[category];
-                    const categoryClass = isFlagged ? 'flagged' : 'safe';
-                    
-                    // Only show categories with non-zero scores or that are flagged
-                    if (score > 0 || isFlagged) {
-                        categoriesDiv.append(`<span class="moderation-category ${categoryClass}">${category}: ${formattedScore}</span>`);
-                        hasCategories = true;
-                    }
-                }
-                
-                // Only append categories div if it has content
-                if (hasCategories) {
-                    moderationInfoDiv.append(categoriesDiv);
-                }
-                
-                chatDiv.append(moderationInfoDiv);
-                
-                // Add click handler for the moderation toggle
-                moderationToggle.click(function(e) {
-                    e.preventDefault();
-                    moderationInfoDiv.toggle();
-                });
-                
-                // Update moderation stats
-                updateModerationStats(update.data.moderation);
-            } else {
-                // No moderation, remove the toggle
-                moderationToggle.remove();
+            // Calculate the sum of all category scores
+            let totalScore = 0;
+            for (const score of Object.values(update.data.moderation.category_scores)) {
+                totalScore += score;
             }
+            
+            // Add flagged status with badge and total score
+            moderationInfoDiv.append(`
+                <div>
+                    <strong>${update.data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong>
+                    <span class="moderation-total-score">(Score total: ${totalScore.toFixed(2)})</span>
+                    <span class="moderation-badge ${update.data.moderation.flagged ? 'flagged' : 'safe'}">
+                        ${update.data.moderation.flagged ? '⚠️' : '✓'}
+                    </span>
+                </div>
+            `);
+            
+            // Handle flagged content notifications
+            if (update.data.moderation.flagged) {
+                // Play notification sound for flagged comments
+                playFlaggedCommentSound();
+                
+                // Show moderation notification if enabled
+                if (enableModerationNotifications) {
+                    showModerationNotification(update.data, update.data.comment, update.data.moderation);
+                }
+            }
+            
+            // Add Ollama reason if available and flagged
+            if (update.data.moderation.flagged && update.data.moderation.ollama_reason) {
+                moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${update.data.moderation.ollama_reason}</div>`);
+            }
+            
+            // Add category information for ALL messages (not just flagged ones)
+            let categoriesDiv = $('<div class="moderation-categories"></div>');
+            let hasCategories = false;
+            
+            for (const [category, score] of Object.entries(update.data.moderation.category_scores)) {
+                const formattedScore = score.toFixed(2);
+                const isFlagged = update.data.moderation.categories[category];
+                const categoryClass = isFlagged ? 'flagged' : 'safe';
+                
+                // Only show categories with non-zero scores or that are flagged
+                if (score > 0 || isFlagged) {
+                    categoriesDiv.append(`<span class="moderation-category ${categoryClass}">${category}: ${formattedScore}</span>`);
+                    hasCategories = true;
+                }
+            }
+            
+            // Only append categories div if it has content
+            if (hasCategories) {
+                moderationInfoDiv.append(categoriesDiv);
+            }
+            
+            chatDiv.append(moderationInfoDiv);
+            
+            // Add click handler for the moderation toggle
+            chatDiv.find('.moderation-toggle').click(function(e) {
+                e.preventDefault();
+                moderationInfoDiv.toggle();
+            });
+            
+            // Update moderation stats
+            updateModerationStats(update.data.moderation);
+        } else {
+            // No moderation, remove the toggle
+            chatDiv.find('.moderation-toggle').remove();
         }
     } else if (update.type === 'response') {
         // Update response
         const responseToggle = chatDiv.find('.response-toggle');
-        if (responseToggle.length) {
+        
+        // If no toggle exists, create one
+        if (responseToggle.length === 0 && update.data.suggestedResponse) {
+            const chatItemDiv = chatDiv.find('.chatitem > div > span');
+            chatItemDiv.append('<a href="#" class="response-toggle">[Réponse IA]</a>');
+        } else if (responseToggle.length > 0) {
             // Replace loading indicator with regular response toggle if there's a response
             if (update.data.suggestedResponse) {
+                console.log('Suggested response');
+                console.log(update.data.suggestedResponse);
                 responseToggle.removeClass('loading');
                 responseToggle.html('[Réponse IA]');
                 
@@ -1172,11 +1239,11 @@ connection.on('chatUpdate', (update) => {
                 chatDiv.find('.response-info').remove();
                 
                 // Add suggested response
-                let responseInfoDiv = $(`<div class="response-info"><strong>Réponse suggérée par l'IA :</strong> <p>${sanitize(update.data.suggestedResponse)}</p></div>`);
+                let responseInfoDiv = $(`<div class="response-info" style="display:none;"><strong>Réponse suggérée par l'IA :</strong> <p>${sanitize(update.data.suggestedResponse)}</p></div>`);
                 chatDiv.append(responseInfoDiv);
                 
                 // Add click handler for the response toggle
-                responseToggle.click(function(e) {
+                chatDiv.find('.response-toggle').click(function(e) {
                     e.preventDefault();
                     responseInfoDiv.toggle();
                 });
@@ -1187,6 +1254,7 @@ connection.on('chatUpdate', (update) => {
             }
         }
     }
+    console.log('Chat update end');
 })
 
 // New gift received
@@ -1269,4 +1337,41 @@ function addGiftItem(data) {
     container.animate({
         scrollTop: container[0].scrollHeight
     }, 800);
+}
+
+// Setup notifications container with clear all button
+function setupNotifications() {
+    // Add clear all button if it doesn't exist yet
+    if ($('.clear-notifications').length === 0) {
+        const clearButton = $('<button class="clear-notifications">Effacer tout</button>');
+        
+        // Add click handler to clear all notifications
+        clearButton.on('click', function() {
+            $('#notification-container .notification').fadeOut(300, function() {
+                $(this).remove();
+            });
+        });
+        
+        // Add button at the beginning of container
+        $('#notification-container').prepend(clearButton);
+        
+        // Initially hide the button until notifications appear
+        clearButton.hide();
+    }
+    
+    // Create a MutationObserver to watch for changes to notifications
+    const observer = new MutationObserver(function(mutations) {
+        const hasNotifications = $('#notification-container .notification').length > 0;
+        if (hasNotifications) {
+            $('.clear-notifications').show();
+        } else {
+            $('.clear-notifications').hide();
+        }
+    });
+    
+    // Start observing
+    observer.observe(document.getElementById('notification-container'), {
+        childList: true,
+        subtree: true
+    });
 }

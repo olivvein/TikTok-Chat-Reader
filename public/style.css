@@ -108,6 +108,17 @@ body:not(.show-moderation) .moderation-info {
     border: 1px solid rgba(0, 255, 0, 0.3);
 }
 
+/* Dark theme moderation adjustments */
+body.dark-theme .moderation-flagged {
+    background-color: rgba(255, 0, 0, 0.15);
+    border: 1px solid rgba(255, 0, 0, 0.4);
+}
+
+body.dark-theme .moderation-safe {
+    background-color: rgba(0, 255, 0, 0.15);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
 .moderation-category {
     display: inline-block;
     margin-right: 6px;
@@ -120,14 +131,14 @@ body:not(.show-moderation) .moderation-info {
 .moderation-category.flagged {
     background-color: rgba(255, 0, 0, 0.1);
     border: 1px solid rgba(255, 0, 0, 0.3);
-    color: #d32f2f;
+    color: var(--flagged-color);
 }
 
 /* Style for safe categories */
 .moderation-category.safe {
     background-color: rgba(0, 255, 0, 0.1);
     border: 1px solid rgba(0, 255, 0, 0.3);
-    color: #388e3c;
+    color: var(--safe-color);
 }
 
 /* Container for all categories */
@@ -136,6 +147,24 @@ body:not(.show-moderation) .moderation-info {
     padding: 3px;
     background-color: rgba(0, 0, 0, 0.02);
     border-radius: 3px;
+}
+
+body.dark-theme .moderation-categories {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-theme .moderation-category {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-theme .moderation-category.flagged {
+    background-color: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.4);
+}
+
+body.dark-theme .moderation-category.safe {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
 }
 
 .moderation-reason {
@@ -147,27 +176,40 @@ body:not(.show-moderation) .moderation-info {
     font-style: italic;
 }
 
+body.dark-theme .moderation-reason {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
 /* Moderation summary section */
 .moderation-summary {
-    background-color: #f8f8f8;
-    border: 1px solid #ddd;
+    background-color: var(--container-bg);
+    border: 1px solid var(--border-color);
     border-radius: 5px;
     padding: 10px;
     margin: 10px 0;
+    color: var(--text-color);
 }
 
 .moderation-summary h3 {
     margin-top: 0;
     font-size: 1.1em;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 5px;
     margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.moderation-summary h4 {
+    color: var(--text-color);
+    margin-top: 15px;
+    margin-bottom: 5px;
 }
 
 .moderation-stat {
     display: flex;
     justify-content: space-between;
     margin-bottom: 5px;
+    color: var(--text-color);
 }
 
 .moderation-stat-count {
@@ -175,11 +217,11 @@ body:not(.show-moderation) .moderation-info {
 }
 
 .flagged-count {
-    color: #d32f2f;
+    color: var(--flagged-color);
 }
 
 .safe-count {
-    color: #388e3c;
+    color: var(--safe-color);
 }
 
 .moderation-badge {
@@ -209,6 +251,11 @@ body:not(.show-moderation) .moderation-info {
     font-size: 0.8em;
 }
 
+.moderation-toggle.loading {
+    color: #888;
+    cursor: wait;
+}
+
 /* AI Response styles */
 .response-info {
     margin-top: 2px;
@@ -233,6 +280,11 @@ body:not(.show-moderation) .moderation-info {
     font-size: 0.8em;
 }
 
+.response-toggle.loading {
+    color: #888;
+    cursor: wait;
+}
+
 /* Show responses option in settings */
 .show-responses .response-info {
     display: block;
@@ -244,24 +296,94 @@ body:not(.show-moderation) .moderation-info {
     top: 20px;
     right: 20px;
     z-index: 1000;
-    max-width: 300px;
+    max-width: 350px;
+}
+
+.clear-notifications {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    font-size: 12px;
+    float: right;
+    transition: background-color 0.2s;
+}
+
+.clear-notifications:hover {
+    background-color: rgba(0, 0, 0, 0.5);
 }
 
 .notification {
-    background-color: #fff;
+    background-color: var(--container-bg);
     border-left: 4px solid #58a6ff;
     margin-bottom: 10px;
     padding: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    animation: fadeIn 0.5s, fadeOut 0.5s 4.5s;
-    opacity: 0;
-    animation-fill-mode: forwards;
+    animation: fadeIn 0.5s;
     border-radius: 4px;
+    max-width: 350px;
+    word-wrap: break-word;
+    position: relative;
+    color: var(--text-color);
+}
+
+.notification-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+.notification-close:before, .notification-close:after {
+    position: absolute;
+    content: '';
+    height: 14px;
+    width: 2px;
+    background-color: var(--text-color);
+    top: 3px;
+    left: 9px;
+}
+
+.notification-close:before {
+    transform: rotate(45deg);
+}
+
+.notification-close:after {
+    transform: rotate(-45deg);
 }
 
 .notification.mention {
     border-left-color: #ff5885;
     background-color: rgba(255, 88, 133, 0.1);
+}
+
+.notification.moderation {
+    border-left-color: #ff3838;
+    background-color: rgba(255, 56, 56, 0.1);
+}
+
+.notification.friend-join {
+    border-left-color: #58c4ff;
+    background-color: rgba(88, 196, 255, 0.1);
+}
+
+.notification.undesirable-join {
+    border-left-color: #ff9538;
+    background-color: rgba(255, 149, 56, 0.1);
 }
 
 .notification-title {
@@ -274,13 +396,8 @@ body:not(.show-moderation) .moderation-info {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
 /* AI Provider Selection Styles */
@@ -728,4 +845,156 @@ body:not(.show-moderation) .moderation-info {
 
 #toggleUserLists:hover {
     background-color: #e0e0e0;
+}
+
+/* Dark Theme Styles */
+:root {
+    --light-bg-color: #ffffff;
+    --light-text-color: #333333;
+    --light-header-bg: #f1f1f1;
+    --light-container-bg: #ffffff;
+    --light-highlight-color: #e6e6e6;
+    --light-link-color: #0078d7;
+    --light-button-bg: #f0f0f0;
+    --light-button-text: #333333;
+    --light-button-hover: #e0e0e0;
+    --light-border-color: #dddddd;
+    --light-flagged-color: #d32f2f;
+    --light-safe-color: #388e3c;
+    
+    --dark-bg-color: #1e1e1e;
+    --dark-text-color: #e0e0e0;
+    --dark-header-bg: #2d2d2d;
+    --dark-container-bg: #252525;
+    --dark-highlight-color: #3a3a3a;
+    --dark-link-color: #4dacff;
+    --dark-button-bg: #3a3a3a;
+    --dark-button-text: #e0e0e0;
+    --dark-button-hover: #4a4a4a;
+    --dark-border-color: #444444;
+    --dark-flagged-color: #ff6c6c;
+    --dark-safe-color: #65da6e;
+}
+
+/* Light theme (default) */
+body {
+    --bg-color: var(--light-bg-color);
+    --text-color: var(--light-text-color);
+    --header-bg: var(--light-header-bg);
+    --container-bg: var(--light-container-bg);
+    --highlight-color: var(--light-highlight-color);
+    --link-color: var(--light-link-color);
+    --button-bg: var(--light-button-bg);
+    --button-text: var(--light-button-text);
+    --button-hover: var(--light-button-hover);
+    --border-color: var(--light-border-color);
+    --flagged-color: var(--light-flagged-color);
+    --safe-color: var(--light-safe-color);
+    
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Dark theme */
+body.dark-theme {
+    --bg-color: var(--dark-bg-color);
+    --text-color: var(--dark-text-color);
+    --header-bg: var(--dark-header-bg);
+    --container-bg: var(--dark-container-bg);
+    --highlight-color: var(--dark-highlight-color);
+    --link-color: var(--dark-link-color);
+    --button-bg: var(--dark-button-bg);
+    --button-text: var(--dark-button-text);
+    --button-hover: var(--dark-button-hover);
+    --border-color: var(--dark-border-color);
+    --flagged-color: var(--dark-flagged-color);
+    --safe-color: var(--dark-safe-color);
+}
+
+/* Apply theme variables to elements */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+}
+
+a {
+    color: var(--link-color);
+}
+
+.head, .containerheader {
+    background-color: var(--header-bg);
+    color: var(--text-color);
+}
+
+.chatcontainer, .giftcontainer, .eventcontainer, #user-lists-panel, .notification {
+    background-color: var(--container-bg);
+    border-color: var(--border-color);
+}
+
+input[type="text"], input[type="password"], select {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+input[type="button"], button, #toggleUserLists {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border: 1px solid var(--border-color);
+}
+
+input[type="button"]:hover, button:hover, #toggleUserLists:hover {
+    background-color: var(--button-hover);
+}
+
+.tab {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.tab.active {
+    background-color: var(--highlight-color);
+}
+
+.user-list-item {
+    background-color: var(--container-bg);
+    border-color: var(--border-color);
+}
+
+.user-list-item:hover {
+    background-color: var(--highlight-color);
+}
+
+.splitchattable, .splitstatetable, #stateText {
+    background-color: var(--container-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.user-actions-menu {
+    background-color: var(--container-bg);
+    border-color: var(--border-color);
+}
+
+.ai-settings, .feature-settings, .notification-settings, .theme-settings {
+    background-color: var(--container-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+/* Transition for smooth theme switching */
+body, body * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Dark theme specific notification styling */
+body.dark-theme .notification {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+
+body.dark-theme .clear-notifications {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+body.dark-theme .clear-notifications:hover {
+    background-color: rgba(255, 255, 255, 0.25);
 }

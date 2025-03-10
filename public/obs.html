@@ -112,6 +112,11 @@
                 enableSoundNotifications = true;
             }
             
+            // Apply dark theme if requested
+            if (window.settings.darkTheme === "1") {
+                $('body').addClass('dark-theme');
+            }
+            
             // Set AI provider and model if specified
             if (window.settings.aiProvider) {
                 aiProvider = window.settings.aiProvider;
@@ -120,6 +125,14 @@
             if (window.settings.aiModel) {
                 aiModel = window.settings.aiModel;
             }
+            
+            // Setup notification container with clear button
+            // Wait for app.js to load
+            setTimeout(() => {
+                if (typeof setupNotifications === 'function') {
+                    setupNotifications();
+                }
+            }, 500);
         })
     </script>
 
@@ -128,6 +141,10 @@
 </head>
 
 <body>
+
+    <div id="notification-container">
+        <!-- Notifications will appear here -->
+    </div>
 
     <table class="splitstatetable">
         <tr>
