@@ -290,12 +290,7 @@ io.on('connection', (socket) => {
             socket.emit('chat', initialMsg);
             
             // Apply moderation to comment based on provider
-            if (msg.comment) {
-                console.log(msg.comment);
-                console.log(socket.aiProvider);
-                console.log(socket.aiModel);
-                console.log(process.env.OLLAMA_HOST);
-                
+            if (msg.comment) {                
                 if (socket.aiProvider === 'ollama' && socket.aiModel) {
                     const moderationResult = await moderateTextWithOllama(msg.comment, socket.aiModel);
                     if (moderationResult) {
@@ -310,8 +305,8 @@ io.on('connection', (socket) => {
                     } else {
                         console.log('No moderation result');
                     }
-                } else if (socket.openaiApiKey) {
-                    const moderationResult = await moderateText(msg.comment, socket.openaiApiKey);
+                } else if (socket.openaiApiKey || process.env.OPENAI_API_KEY) {
+                    const moderationResult = await moderateText(msg.comment, socket.openaiApiKey || process.env.OPENAI_API_KEY);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
                         
@@ -335,11 +330,18 @@ io.on('connection', (socket) => {
             
             // Generate a suggested response using the selected provider and model
             try {
+                console.log(msg);
+                let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
+                // if msg comment start with @[username] make nickname à écrit à [username] : comment
+                if (msg.comment.startsWith('@')) {
+                    const username = msg.comment.slice(1);
+                    theMessage = msg.nickname + ' à écrit à ' + username + ' : ' + msg.comment;
+                }
                 const suggestedResponse = await generateResponse(
-                    msg.comment, 
+                    theMessage, 
                     socket.aiProvider, 
                     socket.aiModel, 
-                    socket.openaiApiKey
+                    socket.openaiApiKey || process.env.OPENAI_API_KEY
                 );
                 if (suggestedResponse) {
                     msg.suggestedResponse = suggestedResponse;
