@@ -7,6 +7,7 @@ const { TikTokConnectionWrapper, getGlobalConnectionCount } = require('./connect
 const { clientBlocked } = require('./limiter');
 const { OpenAI } = require('openai');
 const axios = require('axios');
+const db = require('./db'); // Import our database module
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,6 +26,15 @@ const io = new Server(httpServer, {
         origin: '*'
     }
 });
+
+// Initialize database
+db.initDatabase()
+    .then(() => {
+        console.log('Database initialized successfully');
+    })
+    .catch(err => {
+        console.error('Error initializing database:', err);
+    });
 
 // Function to get available Ollama models
 async function getOllamaModels() {
@@ -390,6 +400,23 @@ io.on('connection', (socket) => {
         tiktokConnectionWrapper.connection.on('emote', msg => socket.emit('emote', msg));
         tiktokConnectionWrapper.connection.on('envelope', msg => socket.emit('envelope', msg));
         tiktokConnectionWrapper.connection.on('subscribe', msg => socket.emit('subscribe', msg));
+
+        // Add a new function to handle room state data
+        socket.on('getUserStatus', async (tiktokId) => {
+            try {
+                // Get user's status in lists
+                const isFriend = await db.isUserFriend(tiktokId);
+                const undesirableStatus = await db.isUserUndesirable(tiktokId);
+                
+                socket.emit('userStatus', {
+                    tiktokId,
+                    isFriend,
+                    ...undesirableStatus
+                });
+            } catch (error) {
+                console.error('Error getting user status:', error);
+            }
+        });
     });
 
     socket.on('disconnect', () => {
@@ -406,6 +433,94 @@ setInterval(() => {
 
 // Serve frontend files
 app.use(express.static('public'));
+
+// Add middleware to parse JSON
+app.use(express.json());
+
+// Define API routes for user lists
+app.get('/api/users/friends', async (req, res) => {
+    try {
+        const friends = await db.getAllFriends();
+        res.json(friends);
+    } catch (error) {
+        console.error('Error fetching friends:', error);
+        res.status(500).json({ error: 'Failed to fetch friends' });
+    }
+});
+
+app.get('/api/users/undesirables', async (req, res) => {
+    try {
+        const undesirables = await db.getAllUndesirables();
+        res.json(undesirables);
+    } catch (error) {
+        console.error('Error fetching undesirables:', error);
+        res.status(500).json({ error: 'Failed to fetch undesirables' });
+    }
+});
+
+app.get('/api/users/search', async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query) {
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+        const users = await db.searchUsers(query);
+        res.json(users);
+    } catch (error) {
+        console.error('Error searching users:', error);
+        res.status(500).json({ error: 'Failed to search users' });
+    }
+});
+
+app.post('/api/users/friends', async (req, res) => {
+    try {
+        const { tiktokId, nickname } = req.body;
+        if (!tiktokId || !nickname) {
+            return res.status(400).json({ error: 'TikTok ID and nickname are required' });
+        }
+        const added = await db.addToFriends(tiktokId, nickname);
+        res.json({ success: true, added });
+    } catch (error) {
+        console.error('Error adding friend:', error);
+        res.status(500).json({ error: 'Failed to add friend' });
+    }
+});
+
+app.post('/api/users/undesirables', async (req, res) => {
+    try {
+        const { tiktokId, nickname, reason } = req.body;
+        if (!tiktokId || !nickname) {
+            return res.status(400).json({ error: 'TikTok ID and nickname are required' });
+        }
+        const added = await db.addToUndesirables(tiktokId, nickname, reason || '');
+        res.json({ success: true, added });
+    } catch (error) {
+        console.error('Error adding undesirable:', error);
+        res.status(500).json({ error: 'Failed to add undesirable' });
+    }
+});
+
+app.delete('/api/users/friends/:tiktokId', async (req, res) => {
+    try {
+        const { tiktokId } = req.params;
+        const removed = await db.removeFromFriends(tiktokId);
+        res.json({ success: true, removed });
+    } catch (error) {
+        console.error('Error removing friend:', error);
+        res.status(500).json({ error: 'Failed to remove friend' });
+    }
+});
+
+app.delete('/api/users/undesirables/:tiktokId', async (req, res) => {
+    try {
+        const { tiktokId } = req.params;
+        const removed = await db.removeFromUndesirables(tiktokId);
+        res.json({ success: true, removed });
+    } catch (error) {
+        console.error('Error removing undesirable:', error);
+        res.status(500).json({ error: 'Failed to remove undesirable' });
+    }
+});
 
 // Start http listener
 const port = process.env.PORT || 8081;

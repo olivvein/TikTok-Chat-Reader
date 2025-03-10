@@ -5,6 +5,7 @@
     "express": "^4.17.2",
     "openai": "^4.86.2",
     "socket.io": "^4.4.1",
+    "sqlite3": "^5.1.7",
     "tiktok-live-connector": "^1.2.3"
   }
 }

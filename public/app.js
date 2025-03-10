@@ -39,6 +39,15 @@ let moderationStats = {
     }
 };
 
+// User list management
+let currentUsersList = {
+    friends: [],
+    undesirables: []
+};
+
+// Flag to track if the user lists UI is open
+let userListsVisible = false;
+
 // These settings are defined by obs.html
 if (!window.settings) window.settings = {};
 
@@ -75,10 +84,12 @@ function showMentionNotification(data, text) {
     // Play sound
     playFlaggedCommentSound(true);
     
-    // Remove after animation completes (5 seconds)
+    // Rester visible pendant 7 secondes, puis fondu de sortie lent
     setTimeout(() => {
-        notification.remove();
-    }, 10000);
+        notification.fadeOut(1500, function() {
+            $(this).remove();
+        });
+    }, 7000); // 7 secondes au total (5.5s pleine visibilité + ~1.5s de fondu)
 }
 
 // Function to show notification for moderated content
@@ -110,10 +121,12 @@ function showModerationNotification(data, text, moderationResult) {
     // Play sound
     playFlaggedCommentSound(true);
     
-    // Remove after animation completes
+    // Rester visible plus longtemps car contenu important, puis fondu de sortie lent
     setTimeout(() => {
-        notification.remove();
-    }, 10000);
+        notification.fadeOut(1500, function() {
+            $(this).remove();
+        });
+    }, 10000); // 10 secondes au total (8.5s pleine visibilité + ~1.5s de fondu)
 }
 
 // Function to update moderation stats
@@ -382,6 +395,12 @@ $(document).ready(() => {
             $('.ollamaStatus').text(`Connecté au serveur Ollama avec ${models.length} modèles disponibles`).removeClass('error').addClass('success');
         }
     });
+
+    // Add event listener for the user lists toggle button
+    $('#toggleUserLists').click(toggleUserListsPanel);
+    
+    // Load user lists on startup
+    loadUserLists();
 })
 
 function connect() {
@@ -444,17 +463,30 @@ function updateRoomStats() {
     $('#roomStats').html(`Spectateurs: <b>${viewerCount.toLocaleString()}</b> J'aime: <b>${likeCount.toLocaleString()}</b> Diamants gagnés: <b>${diamondsCount.toLocaleString()}</b>`)
 }
 
+// Update generateUsernameLink to include user actions
 function generateUsernameLink(data) {
-    return `<a class="usernamelink" href="https://www.tiktok.com/@${data.uniqueId}" target="_blank">${data.nickname}</a>`;
+    return `
+        <div class="username-container">
+            <a class="usernamelink" href="https://www.tiktok.com/@${data.uniqueId}" target="_blank">${data.nickname}</a>
+            ${createUserActionButtons(data)}
+        </div>
+    `;
 }
 
-function isPendingStreak(data) {
-    return data.giftType === 1 && !data.repeatEnd;
+// Function to create user action buttons
+function createUserActionButtons(data) {
+    return `
+        <div class="user-actions-dropdown">
+            <button class="user-actions-toggle">•••</button>
+            <div class="user-actions-menu">
+                <button class="add-to-friends" data-tiktok-id="${data.uniqueId}" data-nickname="${data.nickname}">Ajouter aux amis</button>
+                <button class="add-to-undesirables" data-tiktok-id="${data.uniqueId}" data-nickname="${data.nickname}">Ajouter aux indésirables</button>
+            </div>
+        </div>
+    `;
 }
 
-/**
- * Add a new message to the chat container
- */
+// Update addChatItem to highlight friends and show undesirables in red
 function addChatItem(color, data, text, summarize) {
     let container = location.href.includes('obs.html') ? $('.eventcontainer') : $('.chatcontainer');
 
@@ -473,21 +505,35 @@ function addChatItem(color, data, text, summarize) {
             showMentionNotification(data, text);
         }
     }
+    
+    // Check if user is in undesirables list - mark in red instead of hiding
+    const undesirable = currentUsersList.undesirables.find(u => u.tiktok_id === data.uniqueId);
+    const isFriend = currentUsersList.friends.some(f => f.tiktok_id === data.uniqueId);
+    
+    // Set appropriate class based on user status
+    let userStatusClass = '';
+    if (isFriend) {
+        userStatusClass = 'friend-message';
+    } else if (undesirable) {
+        userStatusClass = 'undesirable-message';
+    }
+
+    // Construct the message with the existing HTML structure
+    let containerContent = `
+        <div class="chatitem ${userStatusClass}">
+            <div>
+                <img class="miniprofilepicture" src="${data.profilePictureUrl}">
+                <span>
+                    <b>${generateUsernameLink(data)}:</b> <span class="comment-text">${text}</span>
+                </span>
+            </div>
+        </div>
+    `;
 
     // Create the main chat div
     let chatDiv = $(
         `<div class=${summarize ? 'temporary' : 'static'} data-msg-id="${data.msgId}">
-            <img class="miniprofilepicture" src="${data.profilePictureUrl}">
-            <span>
-                <b>${generateUsernameLink(data)}:</b> 
-                <span style="color:${color}">${sanitize(text)}</span>
-                ${data.pendingModeration ? 
-                    '<span class="moderation-toggle loading">[Modération <span class="loading-spinner"></span>]</span>' : 
-                    (data.moderation ? '<span class="moderation-toggle">[Modération]</span>' : '')}
-                ${data.pendingResponse ? 
-                    '<span class="response-toggle loading">[Réponse IA <span class="loading-spinner"></span>]</span>' : 
-                    (data.suggestedResponse ? '<span class="response-toggle">[Réponse IA]</span>' : '')}
-            </span>
+            ${containerContent}
         </div>`
     );
 
@@ -592,53 +638,325 @@ function addChatItem(color, data, text, summarize) {
     container.animate({
         scrollTop: container[0].scrollHeight
     }, 400);
+
+    // Attach event handlers for user action buttons
+    chatDiv.find('.add-to-friends').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        addToFriendsList(tiktokId, nickname);
+    });
+    
+    chatDiv.find('.add-to-undesirables').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        const reason = prompt('Raison de l\'ajout aux indésirables (optionnel):');
+        addToUndesirablesList(tiktokId, nickname, reason);
+    });
+    
+    // Show/hide dropdown menu when toggle is clicked
+    chatDiv.find('.user-actions-toggle').click(function(e) {
+        e.stopPropagation();
+        $(this).next('.user-actions-menu').toggle();
+    });
+    
+    // Hide dropdown when clicking elsewhere
+    $(document).click(function() {
+        $('.user-actions-menu').hide();
+    });
 }
 
-/**
- * Add a new gift to the gift container
- */
-function addGiftItem(data) {
-    let container = location.href.includes('obs.html') ? $('.eventcontainer') : $('.giftcontainer');
+// Load user lists on startup
+function loadUserLists() {
+    // Load friends
+    fetch('/api/users/friends')
+        .then(response => response.json())
+        .then(data => {
+            currentUsersList.friends = data;
+            updateUserListsUI();
+        })
+        .catch(error => console.error('Error loading friends:', error));
+    
+    // Load undesirables
+    fetch('/api/users/undesirables')
+        .then(response => response.json())
+        .then(data => {
+            currentUsersList.undesirables = data;
+            updateUserListsUI();
+        })
+        .catch(error => console.error('Error loading undesirables:', error));
+}
 
-    if (container.find('div').length > 200) {
-        container.find('div').slice(0, 100).remove();
-    }
-
-    let streakId = data.userId.toString() + '_' + data.giftId;
-
-    let html = `
-        <div data-streakid=${isPendingStreak(data) ? streakId : ''}>
-            <img class="miniprofilepicture" src="${data.profilePictureUrl}">
-            <span>
-                <b>${generateUsernameLink(data)}:</b> <span>${data.describe}</span><br>
-                <div>
-                    <table>
-                        <tr>
-                            <td><img class="gifticon" src="${data.giftPictureUrl}"></td>
-                            <td>
-                                <span>Nom: <b>${data.giftName}</b> (ID:${data.giftId})<span><br>
-                                <span>Répétition: <b style="${isPendingStreak(data) ? 'color:red' : ''}">x${data.repeatCount.toLocaleString()}</b><span><br>
-                                <span>Coût: <b>${(data.diamondCount * data.repeatCount).toLocaleString()} Diamants</b><span>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-            </span>
-        </div>
-    `;
-
-    let existingStreakItem = container.find(`[data-streakid='${streakId}']`);
-
-    if (existingStreakItem.length) {
-        existingStreakItem.replaceWith(html);
+// Update the user lists UI
+function updateUserListsUI() {
+    // Only update if the user lists panel is visible
+    if (!userListsVisible) return;
+    
+    const friendsList = $('#friendsList');
+    const undesirablesList = $('#undesirablesList');
+    
+    // Update friends list
+    friendsList.empty();
+    if (currentUsersList.friends.length === 0) {
+        friendsList.append('<div class="empty-list-message">Aucun ami dans la liste</div>');
     } else {
-        container.append(html);
+        currentUsersList.friends.forEach(friend => {
+            const lastSeen = new Date(friend.last_seen).toLocaleString();
+            const item = $(`
+                <div class="user-list-item" data-tiktok-id="${friend.tiktok_id}">
+                    <div class="user-info">
+                        <a href="https://www.tiktok.com/@${friend.tiktok_id}" target="_blank" class="user-nickname">${friend.nickname}</a>
+                        <span class="user-id">@${friend.tiktok_id}</span>
+                        <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
+                    </div>
+                    <div class="user-actions">
+                        <button class="remove-friend" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">Retirer</button>
+                        <button class="move-to-undesirable" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">Déplacer vers indésirables</button>
+                    </div>
+                </div>
+            `);
+            friendsList.append(item);
+        });
     }
+    
+    // Update undesirables list
+    undesirablesList.empty();
+    if (currentUsersList.undesirables.length === 0) {
+        undesirablesList.append('<div class="empty-list-message">Aucun utilisateur indésirable dans la liste</div>');
+    } else {
+        currentUsersList.undesirables.forEach(user => {
+            const lastSeen = new Date(user.last_seen).toLocaleString();
+            const reason = user.reason ? `<span class="undesirable-reason">Raison: ${user.reason}</span>` : '';
+            const item = $(`
+                <div class="user-list-item" data-tiktok-id="${user.tiktok_id}">
+                    <div class="user-info">
+                        <a href="https://www.tiktok.com/@${user.tiktok_id}" target="_blank" class="user-nickname">${user.nickname}</a>
+                        <span class="user-id">@${user.tiktok_id}</span>
+                        <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
+                        ${reason}
+                    </div>
+                    <div class="user-actions">
+                        <button class="remove-undesirable" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Retirer</button>
+                        <button class="move-to-friend" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Déplacer vers amis</button>
+                    </div>
+                </div>
+            `);
+            undesirablesList.append(item);
+        });
+    }
+    
+    // Attach event listeners
+    $('.remove-friend').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        removeFriend(tiktokId);
+    });
+    
+    $('.move-to-undesirable').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        moveToUndesirable(tiktokId, nickname);
+    });
+    
+    $('.remove-undesirable').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        removeUndesirable(tiktokId);
+    });
+    
+    $('.move-to-friend').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        moveToFriend(tiktokId, nickname);
+    });
+}
 
-    container.stop();
-    container.animate({
-        scrollTop: container[0].scrollHeight
-    }, 800);
+// Add user to friends list
+function addToFriendsList(tiktokId, nickname) {
+    fetch('/api/users/friends', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tiktokId, nickname }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`${nickname} (@${tiktokId}) ajouté(e) aux amis`);
+        }
+    })
+    .catch(error => console.error('Error adding friend:', error));
+}
+
+// Add user to undesirables list
+function addToUndesirablesList(tiktokId, nickname, reason = '') {
+    fetch('/api/users/undesirables', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tiktokId, nickname, reason }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`${nickname} (@${tiktokId}) ajouté(e) aux indésirables`);
+        }
+    })
+    .catch(error => console.error('Error adding undesirable:', error));
+}
+
+// Remove user from friends list
+function removeFriend(tiktokId) {
+    fetch(`/api/users/friends/${tiktokId}`, {
+        method: 'DELETE',
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`Utilisateur retiré des amis`);
+        }
+    })
+    .catch(error => console.error('Error removing friend:', error));
+}
+
+// Remove user from undesirables list
+function removeUndesirable(tiktokId) {
+    fetch(`/api/users/undesirables/${tiktokId}`, {
+        method: 'DELETE',
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`Utilisateur retiré des indésirables`);
+        }
+    })
+    .catch(error => console.error('Error removing undesirable:', error));
+}
+
+// Move user from friends to undesirables
+function moveToUndesirable(tiktokId, nickname) {
+    const reason = prompt('Raison de l\'ajout aux indésirables (optionnel):');
+    
+    // First remove from friends
+    fetch(`/api/users/friends/${tiktokId}`, {
+        method: 'DELETE',
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Then add to undesirables
+        return fetch('/api/users/undesirables', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tiktokId, nickname, reason }),
+        });
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`${nickname} déplacé vers les indésirables`);
+        }
+    })
+    .catch(error => console.error('Error moving user to undesirables:', error));
+}
+
+// Move user from undesirables to friends
+function moveToFriend(tiktokId, nickname) {
+    // First remove from undesirables
+    fetch(`/api/users/undesirables/${tiktokId}`, {
+        method: 'DELETE',
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Then add to friends
+        return fetch('/api/users/friends', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tiktokId, nickname }),
+        });
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload lists
+            loadUserLists();
+            showNotification(`${nickname} déplacé vers les amis`);
+        }
+    })
+    .catch(error => console.error('Error moving user to friends:', error));
+}
+
+// Show notification
+function showNotification(message) {
+    const notification = $(`<div class="notification">${message}</div>`);
+    $('#notification-container').append(notification);
+    
+    // Rester visible pendant 4 secondes, puis fondu de sortie lent
+    setTimeout(() => {
+        notification.fadeOut(1500, function() {
+            $(this).remove();
+        });
+    }, 7000); // 7 secondes au total (4s pleine visibilité + ~3s de fondu)
+}
+
+// Show a notification when a friend or undesirable joins
+function showJoinNotification(data, userType) {
+    const name = data.nickname || data.uniqueId;
+    let notificationClass = userType === 'friend' ? 'friend-join' : 'undesirable-join';
+    let notificationTitle = userType === 'friend' ? 'Ami a rejoint' : 'Indésirable a rejoint';
+    
+    const notification = $(`
+        <div class="notification ${notificationClass}">
+            <div class="notification-title">${notificationTitle}</div>
+            <div class="notification-message">
+                <b>${name}</b> (@${data.uniqueId}) a rejoint le chat
+            </div>
+        </div>
+    `);
+    
+    $('#notification-container').append(notification);
+    
+    // Rester visible pendant 4 secondes, puis fondu de sortie lent
+    setTimeout(() => {
+        notification.fadeOut(1500, function() {
+            $(this).remove();
+        });
+    }, 7000); // 7 secondes au total (4s pleine visibilité + ~3s de fondu)
+    
+    // Play sound if enabled
+    if (enableSoundNotifications) {
+        playFlaggedCommentSound(true);
+    }
+}
+
+// Toggle user lists panel
+function toggleUserListsPanel() {
+    userListsVisible = !userListsVisible;
+    if (userListsVisible) {
+        $('#user-lists-panel').show();
+        loadUserLists(); // Refresh lists when panel is shown
+    } else {
+        $('#user-lists-panel').hide();
+    }
+}
+
+// Check user status when user information is available
+function checkUserStatus(data) {
+    if (data && data.uniqueId) {
+        socket.emit('getUserStatus', data.uniqueId);
+    }
 }
 
 // viewer stats
@@ -666,17 +984,77 @@ connection.on('like', (msg) => {
 // Member join
 let joinMsgDelay = 0;
 connection.on('member', (msg) => {
-    if (window.settings.showJoins === "0") return;
+    // Debug: Log the member event
+    console.log('Member joined:', msg);
+    
+    // Check if the user is a friend or undesirable
+    const isFriend = currentUsersList.friends.some(f => f.tiktok_id === msg.uniqueId);
+    const undesirable = currentUsersList.undesirables.find(u => u.tiktok_id === msg.uniqueId);
+    
+    // Show notification if user is a friend or undesirable
+    if (isFriend) {
+        showJoinNotification(msg, 'friend');
+    } else if (undesirable) {
+        showJoinNotification(msg, 'undesirable');
+    }
+    
+    // Add the user to the database for future reference
+    if (msg.uniqueId && msg.nickname) {
+        // Stocker l'utilisateur en base de données en utilisant l'API
+        fetch('/api/users/search?query=' + encodeURIComponent(msg.uniqueId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    // L'utilisateur n'existe pas, on le crée via l'API
+                    fetch('/api/users/friends', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            tiktokId: msg.uniqueId, 
+                            nickname: msg.nickname 
+                        }),
+                    }).then(() => {
+                        // Puis on le retire de la liste des amis s'il n'est pas un ami
+                        if (!isFriend) {
+                            fetch(`/api/users/friends/${msg.uniqueId}`, { 
+                                method: 'DELETE' 
+                            });
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Error handling user in database:', error));
+    }
+    
+    // Regular join message handling - only skip if explicitly set to "0"
+    if (window.settings.showJoins === "0") {
+        console.log('Member join messages are disabled');
+        return;
+    }
 
     let addDelay = 250;
     if (joinMsgDelay > 500) addDelay = 100;
     if (joinMsgDelay > 1000) addDelay = 0;
 
     joinMsgDelay += addDelay;
+    console.log('Adding join message with delay:', joinMsgDelay);
 
     setTimeout(() => {
         joinMsgDelay -= addDelay;
-        addChatItem('#21b2c2', msg, 'a rejoint', true);
+        
+        // Use different color for friends and undesirables
+        let messageColor = '#21b2c2'; // default color
+        if (isFriend) {
+            messageColor = '#4CAF50'; // green for friends
+        } else if (undesirable) {
+            messageColor = '#F44336'; // red for undesirables
+        }
+        
+        // Add the join message to the chat
+        console.log('Displaying join message for:', msg.uniqueId);
+        addChatItem(messageColor, msg, 'a rejoint', false); // Change summarize to false to ensure the message isn't treated as temporary
     }, joinMsgDelay);
 })
 
@@ -841,3 +1219,54 @@ connection.on('streamEnd', () => {
         }, 30000);
     }
 })
+
+function isPendingStreak(data) {
+    return data.giftType === 1 && !data.repeatEnd;
+}
+
+/**
+ * Add a new gift to the gift container
+ */
+function addGiftItem(data) {
+    let container = location.href.includes('obs.html') ? $('.eventcontainer') : $('.giftcontainer');
+
+    if (container.find('div').length > 200) {
+        container.find('div').slice(0, 100).remove();
+    }
+
+    let streakId = data.userId.toString() + '_' + data.giftId;
+
+    let html = `
+        <div data-streakid=${isPendingStreak(data) ? streakId : ''}>
+            <img class="miniprofilepicture" src="${data.profilePictureUrl}">
+            <span>
+                <b>${generateUsernameLink(data)}:</b> <span>${data.describe}</span><br>
+                <div>
+                    <table>
+                        <tr>
+                            <td><img class="gifticon" src="${data.giftPictureUrl}"></td>
+                            <td>
+                                <span>Nom: <b>${data.giftName}</b> (ID:${data.giftId})<span><br>
+                                <span>Répétition: <b style="${isPendingStreak(data) ? 'color:red' : ''}">x${data.repeatCount.toLocaleString()}</b><span><br>
+                                <span>Coût: <b>${(data.diamondCount * data.repeatCount).toLocaleString()} Diamants</b><span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </span>
+        </div>
+    `;
+
+    let existingStreakItem = container.find(`[data-streakid='${streakId}']`);
+
+    if (existingStreakItem.length) {
+        existingStreakItem.replaceWith(html);
+    } else {
+        container.append(html);
+    }
+
+    container.stop();
+    container.animate({
+        scrollTop: container[0].scrollHeight
+    }, 800);
+}
