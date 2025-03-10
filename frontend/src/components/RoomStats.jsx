@@ -1,74 +1,52 @@
-import React from 'react'
-
-const RoomStats = ({ roomStats }) => {
-  const {
-    roomId,
-    viewerCount,
-    likeCount,
-    diamondsCount,
-    followersCount,
-    totalChats,
-    uniqueChatters,
-  } = roomStats || {}
+function RoomStats({ stats, moderationStats }) {
+  if (!stats) {
+    return <div id="roomStats">Chargement des statistiques...</div>;
+  }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <h3 className="text-xl font-semibold mb-4">Statistiques du Stream</h3>
-      
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Viewers</p>
-          <p className="text-xl font-bold">{viewerCount || 0}</p>
+    <div id="roomStats">
+      <div className="stats-section">
+        <div className="stat-item">
+          <span className="stat-label">Spectateurs:</span>
+          <span className="stat-value">{stats.viewerCount}</span>
         </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Likes</p>
-          <p className="text-xl font-bold text-pink-400">{formatNumber(likeCount) || 0}</p>
+        <div className="stat-item">
+          <span className="stat-label">Likes:</span>
+          <span className="stat-value">{stats.likeCount}</span>
         </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Diamants</p>
-          <p className="text-xl font-bold text-blue-400">{formatNumber(diamondsCount) || 0}</p>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Nouveaux Followers</p>
-          <p className="text-xl font-bold text-green-400">{formatNumber(followersCount) || 0}</p>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Total Messages</p>
-          <p className="text-xl font-bold">{formatNumber(totalChats) || 0}</p>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <p className="text-gray-400 text-sm">Participants Uniques</p>
-          <p className="text-xl font-bold">{formatNumber(uniqueChatters) || 0}</p>
+        <div className="stat-item">
+          <span className="stat-label">Diamants:</span>
+          <span className="stat-value">{stats.diamondCount}</span>
         </div>
       </div>
       
-      {roomId && (
-        <div className="mt-4 text-center text-sm text-gray-400">
-          ID de la Salle: {roomId}
+      {moderationStats && moderationStats.total > 0 && (
+        <div className="moderation-stats">
+          <h4>Statistiques de modération</h4>
+          <div className="stat-item">
+            <span className="stat-label">Messages analysés:</span>
+            <span className="stat-value">{moderationStats.total}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Messages signalés:</span>
+            <span className="stat-value">{moderationStats.flagged}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Messages propres:</span>
+            <span className="stat-value">{moderationStats.clean}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Taux de signalement:</span>
+            <span className="stat-value">
+              {moderationStats.total > 0 
+                ? `${((moderationStats.flagged / moderationStats.total) * 100).toFixed(1)}%` 
+                : '0%'}
+            </span>
+          </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
-// Helper function to format numbers (e.g., 1000 -> 1K)
-const formatNumber = (num) => {
-  if (!num) return '0'
-  
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  
-  return num.toString()
-}
-
-export default RoomStats 
+export default RoomStats; 

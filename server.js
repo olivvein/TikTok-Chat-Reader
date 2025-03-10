@@ -242,61 +242,76 @@ async function generateResponse(text, provider = 'openai', model = null, apiKey 
     }
 }
 
-io.on('connection', (socket) => {
-    let tiktokConnectionWrapper;
+// Socket IO event handlers
+io.on('connection', socket => {
+    console.log('New connection', socket.id);
 
-    console.info('New connection from origin', socket.handshake.headers['origin'] || socket.handshake.headers['referer']);
+    // Initialize socket properties
+    socket.showModeration = false;
+    socket.showResponses = false;
+    socket.aiProvider = 'openai';
+    socket.aiModel = '';
+    socket.openaiApiKey = '';
 
-    // Send available Ollama models to the client
-    getOllamaModels().then(models => {
-        socket.emit('ollamaModels', models);
-    }).catch(error => {
-        console.error('Error sending Ollama models:', error);
+    // Send the current global connection count to the newly connected client
+    socket.emit('liveCount', getGlobalConnectionCount());
+
+    // Handle Ollama models request
+    socket.on('getOllamaModels', async () => {
+        try {
+            const models = await getOllamaModels();
+            socket.emit('ollamaModels', { success: true, models });
+        } catch (error) {
+            console.error('Error fetching Ollama models:', error);
+            socket.emit('ollamaModels', { success: false, error: 'Failed to fetch models' });
+        }
     });
 
-    socket.on('setUniqueId', (uniqueId, options) => {
+    // Handle connection settings
+    socket.on('setShowModeration', (value) => {
+        console.log(`Client ${socket.id} set showModeration: ${value}`);
+        socket.showModeration = value === true;
+    });
 
-        // Prohibit the client from specifying these options (for security reasons)
-        if (typeof options === 'object' && options) {
-            delete options.requestOptions;
-            delete options.websocketOptions;
-            
-            // Store AI provider settings in the socket object
-            socket.aiProvider = options.aiProvider || 'openai';
-            socket.aiModel = options.aiModel || null;
-            
-            // Store moderation and response settings
-            socket.showModeration = options.showModeration === true;
-            socket.showResponses = options.showResponses === true;
-            
-            // Store OpenAI API key if provided
-            if (options.openaiApiKey) {
-                socket.openaiApiKey = options.openaiApiKey;
-                console.log('Client provided OpenAI API key');
-            }
-            
-            console.log(`Client using AI provider: ${socket.aiProvider}${socket.aiModel ? ', model: ' + socket.aiModel : ''}`);
-        } else {
-            options = {};
-            socket.aiProvider = 'openai';
-            socket.aiModel = null;
-            socket.showModeration = false;
-            socket.showResponses = false;
-        }
+    socket.on('setShowResponses', (value) => {
+        console.log(`Client ${socket.id} set showResponses: ${value}`);
+        socket.showResponses = value === true;
+    });
 
-        // Session ID in .env file is optional
-        if (process.env.SESSIONID) {
-            options.sessionId = process.env.SESSIONID;
-            console.info('Using SessionId');
-        }
+    socket.on('setAIProvider', (provider) => {
+        console.log(`Client ${socket.id} set AI provider: ${provider}`);
+        socket.aiProvider = provider;
+    });
 
-        // Check if rate limit exceeded
-        if (process.env.ENABLE_RATE_LIMIT && clientBlocked(io, socket)) {
-            socket.emit('tiktokDisconnected', 'You have opened too many connections or made too many connection requests. Please reduce the number of connections/requests or host your own server instance. The connections are limited to avoid that the server IP gets blocked by TokTok.');
+    socket.on('setAIModel', (model) => {
+        console.log(`Client ${socket.id} set AI model: ${model}`);
+        socket.aiModel = model;
+    });
+
+    socket.on('setOpenAIKey', (key) => {
+        socket.openaiApiKey = key;
+        console.log(`Client ${socket.id} set custom OpenAI key`);
+    });
+
+    // Handle TikTok connection request
+    socket.on('setUniqueId', async (uniqueId, options = {}) => {
+        console.log(`Client ${socket.id} requested to connect to ${uniqueId}`, options);
+
+        // Apply options from the request
+        if (options.showModeration !== undefined) socket.showModeration = options.showModeration;
+        if (options.showResponses !== undefined) socket.showResponses = options.showResponses;
+        if (options.aiProvider) socket.aiProvider = options.aiProvider;
+        if (options.aiModel) socket.aiModel = options.aiModel;
+        if (options.openaiApiKey) socket.openaiApiKey = options.openaiApiKey;
+
+        // Check if client is rate limited
+        if (uniqueId && clientBlocked(uniqueId)) {
+            socket.emit('tiktokDisconnected', 'Rate limited! Please wait a bit before trying to connect again.');
             return;
         }
 
-        // Connect to the given username (uniqueId)
+        // Connect to TikTok
+        let tiktokConnectionWrapper;
         try {
             tiktokConnectionWrapper = new TikTokConnectionWrapper(uniqueId, options, true);
             tiktokConnectionWrapper.connect();
@@ -318,8 +333,19 @@ io.on('connection', (socket) => {
         
         // Handle chat messages with moderation
         tiktokConnectionWrapper.connection.on('chat', async (msg) => {
+            if (!msg || !msg.comment) {
+                console.warn('Received invalid chat message:', msg);
+                return;
+            }
+            
+            // Ensure msgId is present
+            if (!msg.msgId) {
+                msg.msgId = Date.now().toString();
+            }
+            
             // Send message immediately
             const initialMsg = { ...msg, pendingModeration: true, pendingResponse: true };
+            console.log('Sending initial chat message to client:', initialMsg.msgId);
             socket.emit('chat', initialMsg);
             
             // Apply moderation to comment based on provider
@@ -328,7 +354,7 @@ io.on('connection', (socket) => {
                     const moderationResult = await moderateTextWithOllama(msg.comment, socket.aiModel);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
-                        console.log('Moderation result');
+                        console.log('Moderation result for message:', msg.msgId);
                         
                         // Log flagged content to server console
                         if (moderationResult.flagged) {
@@ -358,13 +384,28 @@ io.on('connection', (socket) => {
                 
                 // Send moderation update
                 msg.pendingModeration = false;
+                console.log('Sending moderation update for message:', msg.msgId);
                 socket.emit('chatUpdate', { id: msg.msgId, type: 'moderation', data: msg });
+                
+                // Also emit a dedicated moderation event for the client
+                if (msg.moderation) {
+                    socket.emit('moderationResult', {
+                        chatId: msg.msgId,
+                        flagged: msg.moderation.flagged,
+                        reason: msg.moderation.ollama_reason || msg.moderation.reason,
+                        categories: msg.moderation.categories || {},
+                        userData: {
+                            uniqueId: msg.uniqueId,
+                            nickname: msg.nickname
+                        },
+                        originalMessage: msg.comment
+                    });
+                }
             }
             
             // Generate a suggested response using the selected provider and model
-            try {
-                //console.log(msg);
-                if (socket.showResponses) {
+            if (socket.showResponses) {
+                try {
                     let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
                     // if msg comment start with @[username] make nickname à écrit à [username] : comment
                     if (msg.comment.startsWith('@')) {
@@ -379,17 +420,25 @@ io.on('connection', (socket) => {
                     );
                     if (suggestedResponse) {
                         msg.suggestedResponse = suggestedResponse;
+                        
+                        // Also emit a dedicated response event for the client
+                        socket.emit('aiResponse', {
+                            chatId: msg.msgId,
+                            response: suggestedResponse
+                        });
                     }
+                } catch (error) {
+                    console.error('Error generating response:', error);
                 }
-            } catch (error) {
-                console.error('Error generating response:', error);
             }
             
             // Send response update
             msg.pendingResponse = false;
+            console.log('Sending response update for message:', msg.msgId);
             socket.emit('chatUpdate', { id: msg.msgId, type: 'response', data: msg });
         });
         
+        // Forward other events
         tiktokConnectionWrapper.connection.on('gift', msg => socket.emit('gift', msg));
         tiktokConnectionWrapper.connection.on('social', msg => socket.emit('social', msg));
         tiktokConnectionWrapper.connection.on('like', msg => socket.emit('like', msg));
@@ -398,31 +447,18 @@ io.on('connection', (socket) => {
         tiktokConnectionWrapper.connection.on('linkMicArmies', msg => socket.emit('linkMicArmies', msg));
         tiktokConnectionWrapper.connection.on('liveIntro', msg => socket.emit('liveIntro', msg));
         tiktokConnectionWrapper.connection.on('emote', msg => socket.emit('emote', msg));
-        tiktokConnectionWrapper.connection.on('envelope', msg => socket.emit('envelope', msg));
-        tiktokConnectionWrapper.connection.on('subscribe', msg => socket.emit('subscribe', msg));
-
-        // Add a new function to handle room state data
-        socket.on('getUserStatus', async (tiktokId) => {
-            try {
-                // Get user's status in lists
-                const isFriend = await db.isUserFriend(tiktokId);
-                const undesirableStatus = await db.isUserUndesirable(tiktokId);
-                
-                socket.emit('userStatus', {
-                    tiktokId,
-                    isFriend,
-                    ...undesirableStatus
-                });
-            } catch (error) {
-                console.error('Error getting user status:', error);
-            }
-        });
-    });
-
-    socket.on('disconnect', () => {
-        if (tiktokConnectionWrapper) {
+        
+        // Handle manual disconnection
+        socket.on('disconnect_tiktok', () => {
+            console.log('Client requested to disconnect from TikTok');
             tiktokConnectionWrapper.disconnect();
-        }
+        });
+        
+        // Cleanup on socket disconnect
+        socket.once('disconnect', () => {
+            console.log('Client disconnected, cleaning up TikTok connection');
+            tiktokConnectionWrapper.disconnect();
+        });
     });
 });
 

@@ -1,127 +1,139 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect } from 'react';
 
-const NotificationContainer = ({ socket, settings }) => {
-  const [notifications, setNotifications] = useState([])
-  const audioRef = useRef(null)
-
+function NotificationContainer({ notifications, setNotifications }) {
   useEffect(() => {
-    if (!socket) return
-
-    socket.on('mention', (data) => {
-      if (settings.enableMentionNotification) {
-        addNotification({
-          type: 'mention',
-          title: 'Mention',
-          message: `Vous avez été mentionné par ${data.nickname} (@${data.uniqueId}): ${data.text}`,
-          data
-        })
-        playSound()
-      }
-    })
-
-    socket.on('moderationNotification', (data) => {
-      if (settings.enableModerationNotification) {
-        addNotification({
-          type: 'moderation',
-          title: 'Alerte Modération',
-          message: `Message flaggé de ${data.nickname} (@${data.uniqueId}): ${data.text}`,
-          reason: data.moderationResult?.flagged_reason,
-          data
-        })
-        playSound()
-      }
-    })
-
-    socket.on('userJoined', (data) => {
-      // Check user status
-      socket.emit('getUserStatus', data.uniqueId)
-    })
-
-    socket.on('userStatus', (data) => {
-      if (data.is_friend) {
-        addNotification({
-          type: 'friend-join',
-          title: 'Ami Rejoint',
-          message: `${data.nickname} (@${data.uniqueId}) a rejoint le chat`,
-          data
-        })
-        playSound()
-      } else if (data.is_undesirable) {
-        addNotification({
-          type: 'undesirable-join',
-          title: 'Utilisateur Indésirable',
-          message: `⚠️ ${data.nickname} (@${data.uniqueId}) a rejoint le chat`,
-          reason: data.reason,
-          data
-        })
-        playSound()
-      }
-    })
-
-    return () => {
-      socket.off('mention')
-      socket.off('moderationNotification')
-      socket.off('userJoined')
-      socket.off('userStatus')
-    }
-  }, [socket, settings])
-
-  const addNotification = (notification) => {
-    const id = Date.now()
-    setNotifications(prev => [...prev, { ...notification, id }])
+    // Auto-remove notifications after a delay
+    const timers = notifications.map(notification => {
+      return setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }, 7000); // 7 seconds total (same as original)
+    });
     
-    // Remove notification after 7 seconds
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id))
-    }, 7000)
-  }
-
-  const playSound = () => {
-    if (settings.enableSoundNotifications && audioRef.current) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch(e => console.error('Error playing sound:', e))
+    // Clean up timers
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+    };
+  }, [notifications, setNotifications]);
+  
+  // Render different notification types
+  const renderNotification = (notification) => {
+    switch (notification.type) {
+      case 'user-join':
+        return renderJoinNotification(notification, false);
+      case 'follower-join':
+        return renderJoinNotification(notification, true);
+      case 'mention':
+        return renderMentionNotification(notification);
+      case 'moderation':
+        return renderModerationNotification(notification);
+      default:
+        return null;
     }
-  }
+  };
+  
+  // Render join notification (regular user or follower)
+  const renderJoinNotification = (notification, isFollower) => {
+    const { data } = notification;
+    const notificationClass = isFollower ? 'follower-notification' : 'join-notification';
+    const notificationTitle = isFollower ? 'Abonné(e) a rejoint' : 'Utilisateur a rejoint';
+    
+    return (
+      <div className={`notification ${notificationClass}`} key={notification.id}>
+        <div className="notification-title">{notificationTitle}</div>
+        <div className="notification-message">
+          <b>{data.nickname}</b> (@{data.uniqueId}) a rejoint le chat
+        </div>
+      </div>
+    );
+  };
+  
+  // Render mention notification
+  const renderMentionNotification = (notification) => {
+    const { data, text } = notification;
+    
+    return (
+      <div className="notification mention-notification" key={notification.id}>
+        <div className="notification-title">Vous avez été mentionné</div>
+        <div className="notification-message">
+          <b>{data.nickname}</b> (@{data.uniqueId}) vous a mentionné: <br />
+          <span className="notification-text">{text}</span>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render moderation notification
+  const renderModerationNotification = (notification) => {
+    const { data, text, moderationResult } = notification;
+    
+    // Extract specific flagged categories for more detailed display
+    const flaggedCategories = [];
+    const categories = moderationResult.categories || {};
+    
+    Object.keys(categories).forEach(category => {
+      if (categories[category]) {
+        switch (category) {
+          case 'sexual':
+            flaggedCategories.push('Contenu sexuel');
+            break;
+          case 'hate':
+            flaggedCategories.push('Discours haineux');
+            break;
+          case 'harassment':
+            flaggedCategories.push('Harcèlement');
+            break;
+          case 'self-harm':
+            flaggedCategories.push('Auto-mutilation');
+            break;
+          case 'sexual/minors':
+            flaggedCategories.push('Contenu sexuel impliquant des mineurs');
+            break;
+          case 'hate/threatening':
+            flaggedCategories.push('Menaces haineuses');
+            break;
+          case 'violence/graphic':
+            flaggedCategories.push('Violence graphique');
+            break;
+          case 'self-harm/intent':
+            flaggedCategories.push('Intention d\'auto-mutilation');
+            break;
+          case 'self-harm/instructions':
+            flaggedCategories.push('Instructions d\'auto-mutilation');
+            break;
+          case 'harassment/threatening':
+            flaggedCategories.push('Menaces de harcèlement');
+            break;
+          case 'violence':
+            flaggedCategories.push('Violence');
+            break;
+          default:
+            flaggedCategories.push(category);
+        }
+      }
+    });
+    
+    return (
+      <div className="notification moderation-notification" key={notification.id}>
+        <div className="notification-title">Message signalé</div>
+        <div className="notification-message">
+          <b>{data.nickname}</b> (@{data.uniqueId}) : <br />
+          <span className="notification-text">{text}</span>
+          <div className="notification-categories">
+            <span className="categories-title">Catégories signalées :</span>
+            {flaggedCategories.map((category, index) => (
+              <span className="flagged-category" key={index}>{category}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="fixed top-4 left-4 z-50 max-w-md">
-      {notifications.map(notification => (
-        <div 
-          key={notification.id} 
-          className={`bg-gray-800 border-l-4 ${getNotificationClass(notification.type)} p-4 mb-3 shadow-lg rounded-r-md animate-slideIn`}
-        >
-          <div className="font-bold">{notification.title}</div>
-          <div className="text-sm">{notification.message}</div>
-          {notification.reason && (
-            <div className="text-xs mt-1 text-red-300">
-              Raison: {notification.reason}
-            </div>
-          )}
-        </div>
-      ))}
-      <audio 
-        ref={audioRef} 
-        preload="auto" 
-        src="https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
-      />
+    <div id="notification-container">
+      {notifications.map(notification => renderNotification(notification))}
     </div>
-  )
+  );
 }
 
-// Helper function to determine notification styling
-const getNotificationClass = (type) => {
-  switch (type) {
-    case 'mention':
-      return 'border-blue-500'
-    case 'moderation':
-      return 'border-red-500'
-    case 'friend-join':
-      return 'border-green-500'
-    case 'undesirable-join':
-      return 'border-yellow-500'
-    default:
-      return 'border-gray-500'
-  }
-}
-
-export default NotificationContainer 
+export default NotificationContainer; 
