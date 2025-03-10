@@ -90,11 +90,12 @@ a {
     font-size: 0.8em;
     padding: 3px 6px;
     border-radius: 4px;
-    display: none; /* Hidden by default */
+    display: block; /* Shown by default */
 }
 
-.show-moderation .moderation-info {
-    display: block;
+/* Only hide moderation info when explicitly set not to show */
+body:not(.show-moderation) .moderation-info {
+    display: none;
 }
 
 .moderation-flagged {
@@ -115,6 +116,28 @@ a {
     background-color: rgba(0, 0, 0, 0.1);
 }
 
+/* Style for flagged categories */
+.moderation-category.flagged {
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    color: #d32f2f;
+}
+
+/* Style for safe categories */
+.moderation-category.safe {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    color: #388e3c;
+}
+
+/* Container for all categories */
+.moderation-categories {
+    margin-top: 5px;
+    padding: 3px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 3px;
+}
+
 .moderation-reason {
     margin-top: 4px;
     margin-bottom: 6px;
@@ -122,6 +145,60 @@ a {
     background-color: rgba(0, 0, 0, 0.05);
     border-radius: 3px;
     font-style: italic;
+}
+
+/* Moderation summary section */
+.moderation-summary {
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.moderation-summary h3 {
+    margin-top: 0;
+    font-size: 1.1em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+}
+
+.moderation-stat {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.moderation-stat-count {
+    font-weight: bold;
+}
+
+.flagged-count {
+    color: #d32f2f;
+}
+
+.safe-count {
+    color: #388e3c;
+}
+
+.moderation-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.moderation-badge.flagged {
+    background-color: rgba(255, 0, 0, 0.2);
+    color: #d32f2f;
+}
+
+.moderation-badge.safe {
+    background-color: rgba(0, 255, 0, 0.2);
+    color: #388e3c;
 }
 
 .moderation-toggle {
@@ -352,4 +429,26 @@ a {
     font-size: 0.9em;
     color: #d32f2f;
     font-style: italic;
+}
+
+/* Style pour le score total de modération */
+.moderation-total-score {
+    margin-left: 5px;
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #555;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 1px 4px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.moderation-flagged .moderation-total-score {
+    color: #d32f2f;
+    background-color: rgba(255, 0, 0, 0.05);
+}
+
+.moderation-safe .moderation-total-score {
+    color: #388e3c;
+    background-color: rgba(0, 255, 0, 0.05);
 }

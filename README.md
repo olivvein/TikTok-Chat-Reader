@@ -44,3 +44,12 @@ To use OpenAI for response suggestions:
 ## Screenshot
 
 ![TikTok LIVE Chat Reader (Demo)](https://user-images.githubusercontent.com/59258980/153956504-c585b14b-a50e-43f0-a994-64adcaface2e.png)
+
+
+## Todo
+
+- analyser les x dernier messages pour plus de contexte de sugestion de réponse
+- ajouter une bizarre list + notification de "à rejoint"
+- ajouter liste d'ami + notification de "à rejoint"
+- notification si qqn veut monter par analyse llm
+- répondre par copier/coller dans le chat

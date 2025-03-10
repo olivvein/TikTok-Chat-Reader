@@ -24,6 +24,21 @@ let aiModel = '';
 // Store available Ollama models
 let availableOllamaModels = [];
 
+// Global variables for moderation stats
+let moderationStats = {
+    total: 0,
+    flagged: 0,
+    safe: 0,
+    categories: {
+        harassment: 0,
+        hate: 0,
+        sexual: 0,
+        violence: 0,
+        self_harm: 0,
+        illegal: 0
+    }
+};
+
 // These settings are defined by obs.html
 if (!window.settings) window.settings = {};
 
@@ -99,6 +114,54 @@ function showModerationNotification(data, text, moderationResult) {
     setTimeout(() => {
         notification.remove();
     }, 10000);
+}
+
+// Function to update moderation stats
+function updateModerationStats(moderationResult) {
+    moderationStats.total++;
+    
+    if (moderationResult.flagged) {
+        moderationStats.flagged++;
+        
+        // Update categories
+        for (const [category, value] of Object.entries(moderationResult.categories)) {
+            if (value) {
+                moderationStats.categories[category]++;
+            }
+        }
+    } else {
+        moderationStats.safe++;
+    }
+    
+    // Update the UI
+    updateModerationSummaryUI();
+}
+
+// Function to update the moderation summary UI
+function updateModerationSummaryUI() {
+    if (!$('#moderation-summary').length) {
+        return;
+    }
+    
+    // Update the counts
+    $('#moderation-total-count').text(moderationStats.total);
+    $('#moderation-flagged-count').text(moderationStats.flagged);
+    $('#moderation-safe-count').text(moderationStats.safe);
+    
+    // Update the categories
+    const categoriesDiv = $('#moderation-categories');
+    categoriesDiv.empty();
+    
+    for (const [category, count] of Object.entries(moderationStats.categories)) {
+        if (count > 0) {
+            categoriesDiv.append(`
+                <div class="moderation-stat">
+                    <span>${category}</span>
+                    <span class="moderation-stat-count flagged-count">${count}</span>
+                </div>
+            `);
+        }
+    }
 }
 
 $(document).ready(() => {
@@ -235,13 +298,39 @@ $(document).ready(() => {
         </div>
     `);
 
+    // Add moderation summary section
+    $('.splitstatetable').after(`
+        <div class="moderation-summary" id="moderation-summary">
+            <h3>Résumé de Modération</h3>
+            <div class="moderation-stat">
+                <span>Total des messages analysés:</span>
+                <span class="moderation-stat-count" id="moderation-total-count">0</span>
+            </div>
+            <div class="moderation-stat">
+                <span>Messages sûrs:</span>
+                <span class="moderation-stat-count safe-count" id="moderation-safe-count">0</span>
+            </div>
+            <div class="moderation-stat">
+                <span>Messages signalés:</span>
+                <span class="moderation-stat-count flagged-count" id="moderation-flagged-count">0</span>
+            </div>
+            <h4>Catégories signalées:</h4>
+            <div id="moderation-categories"></div>
+        </div>
+    `);
+
+    // Initially hide the moderation summary
+    $('#moderation-summary').toggle(false);
+
     // Handle moderation toggle
     $('#showModerationToggle').change(function() {
         showModerationResults = $(this).is(':checked');
         if (showModerationResults) {
             $('body').addClass('show-moderation');
+            $('#moderation-summary').show();
         } else {
             $('body').removeClass('show-moderation');
+            $('#moderation-summary').hide();
         }
     });
 
@@ -305,7 +394,9 @@ function connect() {
         const options = {
             enableExtendedGiftInfo: true,
             aiProvider: aiProvider,
-            aiModel: aiModel
+            aiModel: aiModel,
+            showModeration: showModerationResults,
+            showResponses: showAIResponses
         };
         
         // Add OpenAI API key if OpenAI is selected and key is provided
@@ -354,7 +445,7 @@ function updateRoomStats() {
 }
 
 function generateUsernameLink(data) {
-    return `<a class="usernamelink" href="https://www.tiktok.com/@${data.uniqueId}" target="_blank">${data.uniqueId}</a>`;
+    return `<a class="usernamelink" href="https://www.tiktok.com/@${data.uniqueId}" target="_blank">${data.nickname}</a>`;
 }
 
 function isPendingStreak(data) {
@@ -405,10 +496,24 @@ function addChatItem(color, data, text, summarize) {
         let moderationClass = data.moderation.flagged ? 'moderation-flagged' : 'moderation-safe';
         let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}"></div>`);
         
-        // Add flagged status
-        moderationInfoDiv.append(`<div><strong>${data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong></div>`);
+        // Calculate the sum of all category scores
+        let totalScore = 0;
+        for (const score of Object.values(data.moderation.category_scores)) {
+            totalScore += score;
+        }
         
-        // Add flagged categories if any
+        // Add flagged status with badge and total score
+        moderationInfoDiv.append(`
+            <div>
+                <strong>${data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong>
+                <span class="moderation-total-score">(Score total: ${totalScore.toFixed(2)})</span>
+                <span class="moderation-badge ${data.moderation.flagged ? 'flagged' : 'safe'}">
+                    ${data.moderation.flagged ? '⚠️' : '✓'}
+                </span>
+            </div>
+        `);
+        
+        // Handle flagged content notifications
         if (data.moderation.flagged) {
             // Play notification sound for flagged comments
             playFlaggedCommentSound();
@@ -417,25 +522,32 @@ function addChatItem(color, data, text, summarize) {
             if (enableModerationNotifications) {
                 showModerationNotification(data, text, data.moderation);
             }
+        }
+        
+        // Add Ollama reason if available and flagged
+        if (data.moderation.flagged && data.moderation.ollama_reason) {
+            moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${data.moderation.ollama_reason}</div>`);
+        }
+        
+        // Add category information for ALL messages (not just flagged ones)
+        let categoriesDiv = $('<div class="moderation-categories"></div>');
+        let hasCategories = false;
+        
+        for (const [category, score] of Object.entries(data.moderation.category_scores)) {
+            const formattedScore = score.toFixed(2);
+            const isFlagged = data.moderation.categories[category];
+            const categoryClass = isFlagged ? 'flagged' : 'safe';
             
-            // Add Ollama reason if available
-            if (data.moderation.ollama_reason) {
-                moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${data.moderation.ollama_reason}</div>`);
+            // Only show categories with non-zero scores or that are flagged
+            if (score > 0 || isFlagged) {
+                categoriesDiv.append(`<span class="moderation-category ${categoryClass}">${category}: ${formattedScore}</span>`);
+                hasCategories = true;
             }
-            
-            // Add category information (for OpenAI moderation)
-            let categoriesDiv = $('<div></div>');
-            for (const [category, value] of Object.entries(data.moderation.categories)) {
-                if (value) {
-                    const score = data.moderation.category_scores[category].toFixed(2);
-                    categoriesDiv.append(`<span class="moderation-category">${category}: ${score}</span>`);
-                }
-            }
-            
-            // Only append categories div if it has content
-            if (categoriesDiv.children().length > 0) {
-                moderationInfoDiv.append(categoriesDiv);
-            }
+        }
+        
+        // Only append categories div if it has content
+        if (hasCategories) {
+            moderationInfoDiv.append(categoriesDiv);
         }
         
         chatDiv.append(moderationInfoDiv);
@@ -445,6 +557,9 @@ function addChatItem(color, data, text, summarize) {
             e.preventDefault();
             moderationInfoDiv.toggle();
         });
+        
+        // Update moderation stats
+        updateModerationStats(data.moderation);
     } else if (data.pendingModeration) {
         // Add empty placeholder for the moderation info
         let loadingDiv = $(`<div class="moderation-info" style="display:none;">
@@ -597,10 +712,24 @@ connection.on('chatUpdate', (update) => {
                 let moderationClass = update.data.moderation.flagged ? 'moderation-flagged' : 'moderation-safe';
                 let moderationInfoDiv = $(`<div class="moderation-info ${moderationClass}"></div>`);
                 
-                // Add flagged status
-                moderationInfoDiv.append(`<div><strong>${update.data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong></div>`);
+                // Calculate the sum of all category scores
+                let totalScore = 0;
+                for (const score of Object.values(update.data.moderation.category_scores)) {
+                    totalScore += score;
+                }
                 
-                // Add flagged categories if any
+                // Add flagged status with badge and total score
+                moderationInfoDiv.append(`
+                    <div>
+                        <strong>${update.data.moderation.flagged ? 'SIGNALÉ' : 'SÛR'}</strong>
+                        <span class="moderation-total-score">(Score total: ${totalScore.toFixed(2)})</span>
+                        <span class="moderation-badge ${update.data.moderation.flagged ? 'flagged' : 'safe'}">
+                            ${update.data.moderation.flagged ? '⚠️' : '✓'}
+                        </span>
+                    </div>
+                `);
+                
+                // Handle flagged content notifications
                 if (update.data.moderation.flagged) {
                     // Play notification sound for flagged comments
                     playFlaggedCommentSound();
@@ -609,25 +738,32 @@ connection.on('chatUpdate', (update) => {
                     if (enableModerationNotifications) {
                         showModerationNotification(update.data, update.data.comment, update.data.moderation);
                     }
+                }
+                
+                // Add Ollama reason if available and flagged
+                if (update.data.moderation.flagged && update.data.moderation.ollama_reason) {
+                    moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${update.data.moderation.ollama_reason}</div>`);
+                }
+                
+                // Add category information for ALL messages (not just flagged ones)
+                let categoriesDiv = $('<div class="moderation-categories"></div>');
+                let hasCategories = false;
+                
+                for (const [category, score] of Object.entries(update.data.moderation.category_scores)) {
+                    const formattedScore = score.toFixed(2);
+                    const isFlagged = update.data.moderation.categories[category];
+                    const categoryClass = isFlagged ? 'flagged' : 'safe';
                     
-                    // Add Ollama reason if available
-                    if (update.data.moderation.ollama_reason) {
-                        moderationInfoDiv.append(`<div class="moderation-reason"><strong>Raison:</strong> ${update.data.moderation.ollama_reason}</div>`);
+                    // Only show categories with non-zero scores or that are flagged
+                    if (score > 0 || isFlagged) {
+                        categoriesDiv.append(`<span class="moderation-category ${categoryClass}">${category}: ${formattedScore}</span>`);
+                        hasCategories = true;
                     }
-                    
-                    // Add category information (for OpenAI moderation)
-                    let categoriesDiv = $('<div></div>');
-                    for (const [category, value] of Object.entries(update.data.moderation.categories)) {
-                        if (value) {
-                            const score = update.data.moderation.category_scores[category].toFixed(2);
-                            categoriesDiv.append(`<span class="moderation-category">${category}: ${score}</span>`);
-                        }
-                    }
-                    
-                    // Only append categories div if it has content
-                    if (categoriesDiv.children().length > 0) {
-                        moderationInfoDiv.append(categoriesDiv);
-                    }
+                }
+                
+                // Only append categories div if it has content
+                if (hasCategories) {
+                    moderationInfoDiv.append(categoriesDiv);
                 }
                 
                 chatDiv.append(moderationInfoDiv);
@@ -637,6 +773,9 @@ connection.on('chatUpdate', (update) => {
                     e.preventDefault();
                     moderationInfoDiv.toggle();
                 });
+                
+                // Update moderation stats
+                updateModerationStats(update.data.moderation);
             } else {
                 // No moderation, remove the toggle
                 moderationToggle.remove();

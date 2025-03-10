@@ -62,29 +62,46 @@ async function moderateTextWithOllama(text, model = 'llama3') {
     try {
         const moderationPrompt = `
 You are a content moderation system. Analyze the following message and determine if it contains harmful content.
-Please respond in XML format using these tags:
+Any type of insult or racism or patriotism or misgenderation or any other type of discrimination is harmful content.
+Be really sensitive to everything related to sex, gender, race, religion, etc.
+Examples of harmful content:
+"France aux Français" is harassment at 0.6.
+"La France aux Arabes" is harassment at 0.6.
+"La France aux Africains" is harassment at 0.6.
+"La France aux Asiatiques" is harassment at 0.6.
+"La France aux Européens" is harassment at 0.6.
+"La France aux Américains" is harassment at 0.6.
+
+if any harmful content is included in the message, flag it as true.
+Don't think. in the think process, you just write "ok"
+I want to make sure everything is super safe.
+You speak french, so don't translate the message.
+Please respond in XML format using these tags and only these tags:
 <flagged>true/false</flagged>
 <reason>Specify the reason if flagged, such as: harassment, hate_speech, sexual, violence, self_harm, illegal_activity</reason>
-<score>0.0 to 1.0 indicating severity</score>
-
-Message to moderate: "${text}"
+<category_scores>0.0 to 1.0 indicating severity</category_scores>
 `;
 
         const response = await axios.post(`${OLLAMA_HOST}/v1/chat/completions`, {
             model: model,
             messages: [
-                { role: "user", content: moderationPrompt }
+                { role: "system", content: moderationPrompt },
+                { role: "user", content: "Here is the message to moderate: " + text }
             ],
             max_tokens: 200,
             temperature: 0.1,
         });
         
         const content = response.data.choices[0].message.content;
+        console.log(text);
+        console.log(content);
+
+        const ccontent=removeThinkingContent(content);
         
         // Parse XML response
-        const flaggedMatch = content.match(/<flagged>(true|false)<\/flagged>/i);
-        const reasonMatch = content.match(/<reason>(.*?)<\/reason>/i);
-        const scoreMatch = content.match(/<score>(.*?)<\/score>/i);
+        const flaggedMatch = ccontent.match(/<flagged>(true|false)<\/flagged>/i);
+        const reasonMatch = ccontent.match(/<reason>(.*?)<\/reason>/i);
+        const scoreMatch = ccontent.match(/<category_scores>(.*?)<\/category_scores>/i);
         
         const flagged = flaggedMatch ? flaggedMatch[1].toLowerCase() === 'true' : false;
         const reason = reasonMatch ? reasonMatch[1] : '';
@@ -238,6 +255,10 @@ io.on('connection', (socket) => {
             socket.aiProvider = options.aiProvider || 'openai';
             socket.aiModel = options.aiModel || null;
             
+            // Store moderation and response settings
+            socket.showModeration = options.showModeration === true;
+            socket.showResponses = options.showResponses === true;
+            
             // Store OpenAI API key if provided
             if (options.openaiApiKey) {
                 socket.openaiApiKey = options.openaiApiKey;
@@ -249,6 +270,8 @@ io.on('connection', (socket) => {
             options = {};
             socket.aiProvider = 'openai';
             socket.aiModel = null;
+            socket.showModeration = false;
+            socket.showResponses = false;
         }
 
         // Session ID in .env file is optional
@@ -291,7 +314,7 @@ io.on('connection', (socket) => {
             
             // Apply moderation to comment based on provider
             if (msg.comment) {                
-                if (socket.aiProvider === 'ollama' && socket.aiModel) {
+                if (socket.showModeration && socket.aiProvider === 'ollama' && socket.aiModel) {
                     const moderationResult = await moderateTextWithOllama(msg.comment, socket.aiModel);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
@@ -305,7 +328,7 @@ io.on('connection', (socket) => {
                     } else {
                         console.log('No moderation result');
                     }
-                } else if (socket.openaiApiKey || process.env.OPENAI_API_KEY) {
+                } else if (socket.showModeration && (socket.openaiApiKey || process.env.OPENAI_API_KEY)) {
                     const moderationResult = await moderateText(msg.comment, socket.openaiApiKey || process.env.OPENAI_API_KEY);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
@@ -330,21 +353,23 @@ io.on('connection', (socket) => {
             
             // Generate a suggested response using the selected provider and model
             try {
-                console.log(msg);
-                let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
-                // if msg comment start with @[username] make nickname à écrit à [username] : comment
-                if (msg.comment.startsWith('@')) {
-                    const username = msg.comment.slice(1);
-                    theMessage = msg.nickname + ' à écrit à ' + username + ' : ' + msg.comment;
-                }
-                const suggestedResponse = await generateResponse(
-                    theMessage, 
-                    socket.aiProvider, 
-                    socket.aiModel, 
-                    socket.openaiApiKey || process.env.OPENAI_API_KEY
-                );
-                if (suggestedResponse) {
-                    msg.suggestedResponse = suggestedResponse;
+                //console.log(msg);
+                if (socket.showResponses) {
+                    let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
+                    // if msg comment start with @[username] make nickname à écrit à [username] : comment
+                    if (msg.comment.startsWith('@')) {
+                        const username = msg.comment.slice(1);
+                        theMessage = msg.nickname + ' à écrit à ' + username + ' : ' + msg.comment;
+                    }
+                    const suggestedResponse = await generateResponse(
+                        theMessage, 
+                        socket.aiProvider, 
+                        socket.aiModel, 
+                        socket.openaiApiKey || process.env.OPENAI_API_KEY
+                    );
+                    if (suggestedResponse) {
+                        msg.suggestedResponse = suggestedResponse;
+                    }
                 }
             } catch (error) {
                 console.error('Error generating response:', error);
