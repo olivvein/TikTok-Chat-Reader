@@ -435,7 +435,7 @@ io.on('connection', (socket) => {
 // Emit global connection statistics
 setInterval(() => {
     io.emit('statistic', { globalConnectionCount: getGlobalConnectionCount() });
-}, 2000)
+}, 5000)
 
 // Serve frontend files
 app.use(express.static('public'));

@@ -57,6 +57,7 @@ a {
     overflow-y: scroll;
     height: calc(100vh - 240px);
     word-wrap: break-word;
+    padding: 15px;
 }
 
 .eventcontainer {
@@ -75,6 +76,7 @@ a {
 .miniprofilepicture {
     height: 20px;
     width: 20px;
+    border-radius: 50%;
 }
 
 .gifticon {
@@ -295,13 +297,14 @@ body.dark-theme .moderation-reason {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 1000;
-    max-width: 350px;
+    width: 350px;
+    max-width: 100%;
+    z-index: 1050;
 }
 
 .clear-notifications {
-    background-color: rgba(0, 0, 0, 0.3);
-    color: white;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: #fff;
     border: none;
     border-radius: 4px;
     padding: 5px 10px;
@@ -313,77 +316,46 @@ body.dark-theme .moderation-reason {
 }
 
 .clear-notifications:hover {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 .notification {
-    background-color: var(--container-bg);
-    border-left: 4px solid #58a6ff;
+    padding: 15px;
     margin-bottom: 10px;
-    padding: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    animation: fadeIn 0.5s;
-    border-radius: 4px;
-    max-width: 350px;
-    word-wrap: break-word;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     position: relative;
-    color: var(--text-color);
+    animation: slideIn 0.3s ease-out;
+    opacity: 0.9;
+    transition: opacity 0.3s;
 }
 
-.notification-close {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    opacity: 0.5;
-    transition: opacity 0.2s;
-}
-
-.notification-close:hover {
+.notification:hover {
     opacity: 1;
 }
 
-.notification-close:before, .notification-close:after {
-    position: absolute;
-    content: '';
-    height: 14px;
-    width: 2px;
-    background-color: var(--text-color);
-    top: 3px;
-    left: 9px;
-}
-
-.notification-close:before {
-    transform: rotate(45deg);
-}
-
-.notification-close:after {
-    transform: rotate(-45deg);
-}
-
 .notification.mention {
-    border-left-color: #ff5885;
-    background-color: rgba(255, 88, 133, 0.1);
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
 }
 
 .notification.moderation {
-    border-left-color: #ff3838;
-    background-color: rgba(255, 56, 56, 0.1);
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
 }
 
 .notification.friend-join {
-    border-left-color: #58c4ff;
-    background-color: rgba(88, 196, 255, 0.1);
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
 }
 
 .notification.undesirable-join {
-    border-left-color: #ff9538;
-    background-color: rgba(255, 149, 56, 0.1);
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
 }
 
 .notification-title {
@@ -395,9 +367,9 @@ body.dark-theme .moderation-reason {
     word-break: break-word;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateX(30px); }
-    to { opacity: 1; transform: translateX(0); }
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 0.9; }
 }
 
 /* AI Provider Selection Styles */
@@ -461,11 +433,12 @@ body.dark-theme .moderation-reason {
     display: inline-block;
     width: 12px;
     height: 12px;
-    margin-left: 5px;
-    border: 2px solid rgba(0, 0, 0, 0.2);
-    border-top-color: #3498db;
+    border: 2px solid rgba(0,0,0,0.1);
     border-radius: 50%;
-    animation: spin 1s ease-in-out infinite;
+    border-top-color: #007bff;
+    animation: spin 1s linear infinite;
+    margin-right: 5px;
+    vertical-align: middle;
 }
 
 .response-toggle.loading .loading-spinner, 
@@ -474,7 +447,8 @@ body.dark-theme .moderation-reason {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .loading-text {
@@ -573,17 +547,24 @@ body.dark-theme .moderation-reason {
 /* User Lists Panel */
 #user-lists-panel {
     position: fixed;
-    top: 50px;
-    right: 20px;
-    width: 350px;
+    top: 70px;
+    right: 15px;
+    width: 400px;
+    max-width: 90vw;
     max-height: 80vh;
-    background-color: #fff;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
-    padding: 15px;
-    overflow: hidden;
+    overflow-y: auto;
+    z-index: 1050;
     display: none;
+    border: 1px solid rgba(0,0,0,.125);
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark theme for user lists panel */
+[data-bs-theme="dark"] #user-lists-panel {
+    background-color: #2c3034;
+    border-color: #373b3e;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 #user-lists-panel h2 {
@@ -596,6 +577,7 @@ body.dark-theme .moderation-reason {
     max-height: 300px;
     overflow-y: auto;
     margin-bottom: 20px;
+    padding: 10px;
 }
 
 .user-list-item {
@@ -606,8 +588,30 @@ body.dark-theme .moderation-reason {
     align-items: center;
 }
 
+/* Ensure card-based user-list-items are properly styled */
+.user-list-item.card {
+    display: block; /* Override the flex display */
+    padding: 0; /* Remove padding since card-body provides it */
+    border-bottom: none; /* Remove bottom border as card has its own borders */
+}
+
 .user-list-item:hover {
     background-color: #f9f9f9;
+}
+
+.user-list-item.card .card-body {
+    padding: 1rem; /* Ensure proper padding */
+}
+
+.user-list-item.card .user-info {
+    margin-bottom: 0.5rem; /* Add some spacing before action buttons */
+}
+
+/* Make sure the user action buttons are displayed properly */
+.user-list-item.card .user-actions {
+    display: flex;
+    flex-direction: row; /* Change to row for card-based items */
+    gap: 5px;
 }
 
 .user-info {
@@ -691,13 +695,7 @@ body.dark-theme .moderation-reason {
     border-bottom-color: #fff;
 }
 
-.tab-content {
-    display: none;
-}
 
-.tab-content.active {
-    display: block;
-}
 
 .username-container {
     display: inline-flex;
@@ -833,18 +831,17 @@ body.dark-theme .moderation-reason {
 /* User lists toggle button */
 #toggleUserLists {
     position: fixed;
-    top: 10px;
-    right: 20px;
+    top: 15px;
+    right: 15px;
     padding: 8px 15px;
-    background-color: #f1f1f1;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    z-index: 900;
+    z-index: 1049;
+    transition: all 0.2s ease;
 }
 
-#toggleUserLists:hover {
-    background-color: #e0e0e0;
+#toggleUserLists.active {
+    background-color: var(--bs-primary);
+    color: white;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
 
 /* Dark Theme Styles */
@@ -993,8 +990,463 @@ body.dark-theme .notification {
 
 body.dark-theme .clear-notifications {
     background-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
 }
 
 body.dark-theme .clear-notifications:hover {
     background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Custom CSS that works with Bootstrap */
+
+/* Override for container heights */
+.chatcontainer, .giftcontainer, .eventcontainer {
+    overflow-y: scroll;
+    height: calc(100vh - 240px);
+    word-wrap: break-word;
+    padding: 15px;
+}
+
+.eventcontainer {
+    height: calc(100vh - 90px);
+}
+
+.miniprofilepicture {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+}
+
+.gifticon {
+    height: 50px;
+    width: 50px;
+    margin-right: 10px;
+}
+
+/* User lists panel */
+#user-lists-panel {
+    position: fixed;
+    top: 70px;
+    right: 15px;
+    width: 400px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    z-index: 1050;
+    display: none;
+    border: 1px solid rgba(0,0,0,.125);
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Notification styles */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 350px;
+    max-width: 100%;
+    z-index: 1050;
+}
+
+.notification {
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    position: relative;
+    animation: slideIn 0.3s ease-out;
+    opacity: 0.9;
+    transition: opacity 0.3s;
+}
+
+.notification:hover {
+    opacity: 1;
+}
+
+.notification.mention {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.notification.moderation {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.notification.friend-join {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.notification.undesirable-join {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+}
+
+.notification-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.notification-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    cursor: pointer;
+    font-size: 18px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background-color: transparent;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-close:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.notification-close::before,
+.notification-close::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 2px;
+    background-color: currentColor;
+}
+
+.notification-close::before {
+    transform: rotate(45deg);
+}
+
+.notification-close::after {
+    transform: rotate(-45deg);
+}
+
+[data-bs-theme="dark"] .notification-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 0.9; }
+}
+
+/* Moderation styles */
+.moderation-info {
+    margin-top: 2px;
+    margin-left: 25px;
+    font-size: 0.8em;
+    padding: 3px 6px;
+    border-radius: 4px;
+    display: block;
+}
+
+body:not(.show-moderation) .moderation-info {
+    display: none;
+}
+
+.moderation-flagged {
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+}
+
+.moderation-safe {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+.moderation-category {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.moderation-category.flagged {
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    color: var(--flagged-color);
+}
+
+.moderation-category.safe {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    color: var(--safe-color);
+}
+
+.moderation-categories {
+    margin-top: 5px;
+    padding: 3px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 3px;
+}
+
+/* Toast-like notification for mentions */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 350px;
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 4px;
+    padding: 12px 15px;
+    z-index: 1060;
+    display: none;
+}
+
+/* Loading spinners */
+.loading-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: #007bff;
+    animation: spin 1s linear infinite;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.response-toggle.loading .loading-spinner, 
+.moderation-toggle.loading .loading-spinner {
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Dark theme specific styles */
+[data-bs-theme="dark"] {
+    --bs-body-bg: #212529;
+    --bs-body-color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .card {
+    background-color: #2c3034;
+    border-color: #373b3e;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background-color: #343a40;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .nav-tabs {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: #343a40;
+    border-color: #495057 #495057 #343a40;
+    color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link:not(.active) {
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] pre,
+[data-bs-theme="dark"] #stateText {
+    background-color: #343a40 !important;
+    color: #e9ecef;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background-color: #343a40;
+    border-color: #495057;
+    color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .input-group-text {
+    background-color: #495057;
+    border-color: #495057;
+    color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .form-text {
+    color: #adb5bd;
+}
+
+/* Chat item styling */
+.chatitem {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    transition: background-color 0.2s;
+}
+
+.chatitem:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+[data-bs-theme="dark"] .chatitem {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+[data-bs-theme="dark"] .chatitem:hover {
+    background-color: rgba(255,255,255,0.05);
+}
+
+.username-container {
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+.usernamelink {
+    text-decoration: none;
+}
+
+.chatitem .comment-text {
+    word-break: break-word;
+}
+
+/* Gift items */
+.giftitem {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+}
+
+[data-bs-theme="dark"] .giftitem {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.usernamelink {
+    color: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] .usernamelink {
+    color: #8ab4f8;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chatcontainer, .giftcontainer {
+        height: 50vh;
+        min-width: auto;
+    }
+    
+    #user-lists-panel {
+        width: 90vw;
+        top: 80px;
+    }
+}
+
+/* Friend/Undesirable badges */
+.user-status.friend {
+    background-color: var(--bs-primary);
+}
+
+.user-status.undesirable {
+    background-color: var(--bs-danger);
+}
+
+.undesirable-reason {
+    display: block;
+    font-style: italic;
+    margin-top: 4px;
+    color: #6c757d;
+}
+
+[data-bs-theme="dark"] .undesirable-reason {
+    color: #adb5bd;
+}
+
+/* Toast position fix */
+.toast {
+    z-index: 1070;
+}
+
+/* Define custom variables for light/dark themes */
+:root {
+    --flagged-color: #d32f2f;
+    --safe-color: #388e3c;
+}
+
+[data-bs-theme="dark"] {
+    --flagged-color: #ef5350;
+    --safe-color: #66bb6a;
+}
+
+/* Dark theme moderation adjustments */
+[data-bs-theme="dark"] .moderation-flagged {
+    background-color: rgba(255, 0, 0, 0.15);
+    border: 1px solid rgba(255, 0, 0, 0.4);
+}
+
+[data-bs-theme="dark"] .moderation-safe {
+    background-color: rgba(0, 255, 0, 0.15);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+[data-bs-theme="dark"] .moderation-categories {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-bs-theme="dark"] .moderation-category {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .moderation-category.flagged {
+    background-color: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.4);
+}
+
+[data-bs-theme="dark"] .moderation-category.safe {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+/* Make sure both tab panes display their content properly */
+#friends-tab, #undesirables-tab, #search-tab {
+    padding: 10px;
+}
+
+/* Make all tab-panes have the same visibility rules */
+.tab-pane.fade {
+    opacity: 0;
+    transition: opacity .15s linear;
+}
+
+.tab-pane.fade.show {
+    opacity: 1;
+}
+
+/* Fix for Bootstrap tab system sometimes not showing content properly */
+.tab-content > .tab-pane {
+    display: none;
+}
+
+.tab-content > .active {
+    display: block;
+}
+
+/* Ensure proper visibility for the undesirables list and items */
+#undesirablesList {
+    display: block;
+    visibility: visible;
+}
+
+.user-list-item.card {
+    display: block; /* Override the flex display */
+    padding: 0; /* Remove padding since card-body provides it */
+    border-bottom: none; /* Remove bottom border as card has its own borders */
+    margin-bottom: 10px; /* Ensure some spacing between items */
 }

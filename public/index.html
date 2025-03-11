@@ -9,10 +9,18 @@
     <meta name="description" content="Un lecteur de chat pour TikTok LIVE utilisant TikTok-Live-Connector et Socket.IO pour transmettre les données au client. Ce projet de démonstration utilise l'API non officielle de TikTok pour récupérer les commentaires du chat, les cadeaux et d'autres événements de TikTok LIVE.">
     <meta name="keywords" content="TikTok,Live,Livestream,Chat,Reader,Scraper,Tracker,tiktok.com,broadcast,api,library,node,node.js,javascript">
 
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="connection.js"></script>
     <script src="app.js"></script>
@@ -85,15 +93,20 @@
             if (savedTheme === 'true') {
                 $('body').addClass('dark-theme');
                 $('#darkThemeToggle').prop('checked', true);
+                $('html').attr('data-bs-theme', 'dark');
+            } else {
+                $('html').attr('data-bs-theme', 'light');
             }
             
             // Handle dark theme toggle
             $('#darkThemeToggle').change(function() {
                 if ($(this).is(':checked')) {
                     $('body').addClass('dark-theme');
+                    $('html').attr('data-bs-theme', 'dark');
                     localStorage.setItem('darkTheme', 'true');
                 } else {
                     $('body').removeClass('dark-theme');
+                    $('html').attr('data-bs-theme', 'light');
                     localStorage.setItem('darkTheme', 'false');
                 }
             });
@@ -110,28 +123,24 @@
                 }
             }
             
-            // Tab switching for user lists
-            $('.tab').click(function() {
-                const tabId = $(this).data('tab');
-                
-                // Hide all tab contents
-                $('.tab-content').removeClass('active');
-                
-                // Show selected tab content
-                $(`#${tabId}-tab`).addClass('active');
-                
-                // Update tab active state
-                $('.tab').removeClass('active');
-                $(this).addClass('active');
-            });
+            // Tabs are now handled by Bootstrap's built-in tab functionality
+            // No need for custom tab handling code
             
             // User search functionality
             $('#userSearchButton').click(function() {
                 const query = $('#userSearchInput').val().trim();
                 if (query.length === 0) return;
                 
+                // Show loading indicator
+                $('#searchResults').html('<div class="d-flex justify-content-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>');
+                
                 fetch(`/api/users/search?query=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Erreur HTTP: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         const resultsDiv = $('#searchResults');
                         resultsDiv.empty();
@@ -146,25 +155,27 @@
                             let statusText = '';
                             
                             if (user.is_friend) {
-                                statusText = '<span class="user-status friend">Ami</span>';
+                                statusText = '<span class="user-status friend badge bg-primary">Ami</span>';
                             } else if (user.is_undesirable) {
-                                statusText = '<span class="user-status undesirable">Indésirable</span>';
+                                statusText = '<span class="user-status undesirable badge bg-danger">Indésirable</span>';
                                 if (user.reason) {
                                     statusText += `<span class="undesirable-reason">Raison: ${user.reason}</span>`;
                                 }
                             }
                             
                             const item = $(`
-                                <div class="user-list-item" data-tiktok-id="${user.tiktok_id}">
-                                    <div class="user-info">
-                                        <a href="https://www.tiktok.com/@${user.tiktok_id}" target="_blank" class="user-nickname">${user.nickname}</a>
-                                        <span class="user-id">@${user.tiktok_id}</span>
-                                        ${statusText}
-                                        <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
-                                    </div>
-                                    <div class="user-actions">
-                                        ${!user.is_friend ? `<button class="add-to-friends-search" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Ajouter aux amis</button>` : ''}
-                                        ${!user.is_undesirable ? `<button class="add-to-undesirables-search" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Ajouter aux indésirables</button>` : ''}
+                                <div class="user-list-item card mb-2" data-tiktok-id="${user.tiktok_id}">
+                                    <div class="card-body">
+                                        <div class="user-info">
+                                            <a href="https://www.tiktok.com/@${user.tiktok_id}" target="_blank" class="user-nickname">${user.nickname}</a>
+                                            <span class="user-id">@${user.tiktok_id}</span>
+                                            ${statusText}
+                                            <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
+                                        </div>
+                                        <div class="user-actions mt-2">
+                                            ${!user.is_friend ? `<button class="add-to-friends-search btn btn-sm btn-outline-primary" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Ajouter aux amis</button>` : ''}
+                                            ${!user.is_undesirable ? `<button class="add-to-undesirables-search btn btn-sm btn-outline-danger ms-2" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Ajouter aux indésirables</button>` : ''}
+                                        </div>
                                     </div>
                                 </div>
                             `);
@@ -173,22 +184,11 @@
                         });
                         
                         // Attach event listeners for search results
-                        $('.add-to-friends-search').click(function() {
-                            const tiktokId = $(this).data('tiktok-id');
-                            const nickname = $(this).data('nickname');
-                            addToFriendsList(tiktokId, nickname);
-                        });
-                        
-                        $('.add-to-undesirables-search').click(function() {
-                            const tiktokId = $(this).data('tiktok-id');
-                            const nickname = $(this).data('nickname');
-                            const reason = prompt('Raison de l\'ajout aux indésirables (optionnel):');
-                            addToUndesirablesList(tiktokId, nickname, reason);
-                        });
+                        attachUserActionListeners();
                     })
                     .catch(error => {
                         console.error('Error searching users:', error);
-                        $('#searchResults').html('<div class="empty-list-message">Erreur de recherche</div>');
+                        $('#searchResults').html('<div class="alert alert-danger">Erreur de recherche: ' + error.message + '</div>');
                     });
             });
             
@@ -201,182 +201,238 @@
         });
     </script>
 </head>
-<body>
+<body class="">
     
-
     <div id="notification-container">
         <!-- Notifications will appear here -->
     </div>
 
     <!-- Toggle button for user lists -->
-    <button id="toggleUserLists">Gérer les listes d'utilisateurs</button>
+    <button id="toggleUserLists" class="btn btn-primary position-fixed top-0 end-0 m-3">
+        <i class="bi bi-people-fill me-2"></i>Gérer les listes d'utilisateurs
+    </button>
 
     <!-- User Lists Panel -->
-    <div id="user-lists-panel">
-        <h2>Listes d'utilisateurs</h2>
-        
-        <div class="tabs">
-            <div class="tab active" data-tab="friends">Amis</div>
-            <div class="tab" data-tab="undesirables">Indésirables</div>
-            <div class="tab" data-tab="search">Recherche</div>
+    <div id="user-lists-panel" class="card shadow">
+        <div class="card-header">
+            <h2 class="mb-0">Listes d'utilisateurs</h2>
         </div>
         
-        <div class="tab-content active" id="friends-tab">
-            <h3>Liste des amis</h3>
-            <div id="friendsList" class="user-list">
-                <!-- Friends will be populated here -->
-                <div class="empty-list-message">Aucun ami dans la liste</div>
-            </div>
-        </div>
-        
-        <div class="tab-content" id="undesirables-tab">
-            <h3>Liste des indésirables</h3>
-            <div id="undesirablesList" class="user-list">
-                <!-- Undesirables will be populated here -->
-                <div class="empty-list-message">Aucun utilisateur indésirable dans la liste</div>
-            </div>
-        </div>
-        
-        <div class="tab-content" id="search-tab">
-            <h3>Rechercher des utilisateurs</h3>
-            <div class="search-form">
-                <input type="text" id="userSearchInput" placeholder="Nom d'utilisateur ou @identifiant">
-                <button id="userSearchButton">Rechercher</button>
-            </div>
-            <div id="searchResults" class="user-list">
-                <!-- Search results will be populated here -->
-            </div>
-        </div>
-    </div>
-
-    <div class="inputFields">
-        <p>Entrez le <b>@nom d'utilisateur</b> d'une personne actuellement en direct :</p>
-        <input type="text" id="uniqueIdInput">
-        <input type="button" id="connectButton" value="Connecter">
-        <a href="#" onclick="generateOverlay()">Générer l'URL de superposition</a>
-        
-        <p>Entrez <b>votre</b> nom d'utilisateur TikTok (pour recevoir des notifications quand vous êtes mentionné) :</p>
-        <input type="text" id="yourUsernameInput" placeholder="Votre nom d'utilisateur TikTok">
-        
-        <!-- AI Provider Selection -->
-        <div class="ai-settings">
-            <h3>Fournisseur de Réponses IA</h3>
-            <div class="provider-selection">
-                <label>
-                    <input type="radio" name="aiProvider" value="openai" checked> OpenAI
-                </label>
-                <label>
-                    <input type="radio" name="aiProvider" value="ollama"> Ollama
-                </label>
-            </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="friends-tab-btn" data-bs-toggle="tab" data-bs-target="#friends-tab" type="button" role="tab">Amis</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="undesirables-tab-btn" data-bs-toggle="tab" data-bs-target="#undesirables-tab" type="button" role="tab">Indésirables</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="search-tab-btn" data-bs-toggle="tab" data-bs-target="#search-tab" type="button" role="tab">Recherche</button>
+                </li>
+            </ul>
             
-            <!-- OpenAI Settings (shown by default) -->
-            <div id="openaiSettings" class="provider-settings">
-                <label for="openaiApiKey">Votre clé API OpenAI:</label>
-                <input type="password" id="openaiApiKey" placeholder="sk-...">
-                <p class="info-text">Utilisation du modèle GPT-4o-mini d'OpenAI</p>
-                <p class="info-text">Vous devez fournir votre propre clé API OpenAI. Vous pouvez en obtenir une sur <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.</p>
-            </div>
-            
-            <!-- Ollama Settings (hidden by default) -->
-            <div id="ollamaSettings" class="provider-settings" style="display: none;">
-                <label for="ollamaModel">Sélectionnez un modèle Ollama :</label>
-                <select id="ollamaModel">
-                    <option value="">Chargement des modèles...</option>
-                </select>
-                <p class="info-text ollamaStatus">Vérification de la connexion au serveur Ollama...</p>
-                <p class="info-text">Note : Tout contenu <code>&lt;thinking&gt;</code> du modèle sera filtré des réponses.</p>
-            </div>
-        </div>
-
-        <!-- Feature Toggles -->
-        <div class="feature-settings">
-            <h3>Paramètres des Fonctionnalités</h3>
-            
-            <!-- Moderation Toggle -->
-            <div class="feature-toggle">
-                <label>
-                    <input type="checkbox" id="showModerationToggle"> Activer la modération de contenu
-                </label>
-                <p class="info-text">Analyser les messages pour détecter le contenu inapproprié et afficher les détails de modération</p>
-            </div>
-            
-            <!-- AI Responses Toggle -->
-            <div class="feature-toggle">
-                <label>
-                    <input type="checkbox" id="showResponsesToggle"> Activer les réponses suggérées par l'IA
-                </label>
-                <p class="info-text">Générer des réponses automatiques aux messages</p>
-            </div>
-            
-            <!-- Notifications Settings -->
-            <div class="notification-settings">
-                <h4>Notifications</h4>
-                
-                <!-- Username Mention Notification Toggle -->
-                <div class="feature-toggle">
-                    <label>
-                        <input type="checkbox" id="enableMentionNotification" checked> Notifications de mention d'utilisateur
-                    </label>
-                    <p class="info-text">Recevoir une notification lorsque votre nom d'utilisateur est mentionné</p>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="friends-tab" role="tabpanel">
+                    <h3>Liste des amis</h3>
+                    <div id="friendsList" class="user-list">
+                        <!-- Friends will be populated here -->
+                        <div class="empty-list-message">Aucun ami dans la liste</div>
+                    </div>
                 </div>
                 
-                <!-- Moderation Alert Notification Toggle -->
-                <div class="feature-toggle">
-                    <label>
-                        <input type="checkbox" id="enableModerationNotification" checked> Alertes de modération
-                    </label>
-                    <p class="info-text">Recevoir une notification pour les messages signalés</p>
+                <div class="tab-pane fade" id="undesirables-tab" role="tabpanel">
+                    <h3>Liste des indésirables</h3>
+                    <div id="undesirablesList" class="user-list">
+                        <!-- Undesirables will be populated here -->
+                        <div class="empty-list-message">Aucun utilisateur indésirable dans la liste</div>
+                    </div>
                 </div>
                 
-                <!-- Sound Notification Toggle -->
-                <div class="feature-toggle">
-                    <label>
-                        <input type="checkbox" id="enableSoundToggle"> Activer les sons de notification
-                    </label>
-                    <p class="info-text">Jouer un son lors des notifications</p>
-                </div>
-            </div>
-            
-            <!-- Theme Settings -->
-            <div class="theme-settings">
-                <h4>Apparence</h4>
-                
-                <!-- Dark Theme Toggle -->
-                <div class="feature-toggle">
-                    <label>
-                        <input type="checkbox" id="darkThemeToggle"> Mode sombre
-                    </label>
-                    <p class="info-text">Activer l'apparence sombre de l'application</p>
+                <div class="tab-pane fade" id="search-tab" role="tabpanel">
+                    <h3>Rechercher des utilisateurs</h3>
+                    <div class="input-group mb-3">
+                        <input type="text" id="userSearchInput" class="form-control" placeholder="Nom d'utilisateur ou @identifiant">
+                        <button id="userSearchButton" class="btn btn-primary">
+                            <i class="bi bi-search me-1"></i>Rechercher
+                        </button>
+                    </div>
+                    <div id="searchResults" class="user-list">
+                        <!-- Search results will be populated here -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <table class="splitstatetable">
-        <tr>
-            <td>
-                <pre id="stateText"></pre>
-            </td>
-            <td>
-                <div id="roomStats"></div>
-            </td>
-        </tr>
-    </table>
+    <div class="container py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="card-title">Lecteur de Chat TikTok LIVE</h2>
+                        
+                        <div class="mb-3">
+                            <label for="uniqueIdInput" class="form-label">Entrez le <b>@nom d'utilisateur</b> d'une personne actuellement en direct :</label>
+                            <div class="input-group">
+                                <span class="input-group-text">@</span>
+                                <input type="text" class="form-control" id="uniqueIdInput">
+                                <button class="btn btn-primary" id="connectButton">Connecter</button>
+                            </div>
+                            <div class="mt-2">
+                                <a href="#" class="btn btn-outline-secondary" onclick="generateOverlay()">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Générer l'URL de superposition
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="yourUsernameInput" class="form-label">Entrez <b>votre</b> nom d'utilisateur TikTok (pour recevoir des notifications quand vous êtes mentionné) :</label>
+                            <div class="input-group">
+                                <span class="input-group-text">@</span>
+                                <input type="text" class="form-control" id="yourUsernameInput" placeholder="Votre nom d'utilisateur TikTok">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- AI Provider Selection -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h3 class="mb-0">Fournisseur de Réponses IA</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="provider-selection mb-3">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="aiProvider" id="aiProviderOpenai" value="openai" checked>
+                                <label class="form-check-label" for="aiProviderOpenai">OpenAI</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="aiProvider" id="aiProviderOllama" value="ollama">
+                                <label class="form-check-label" for="aiProviderOllama">Ollama</label>
+                            </div>
+                        </div>
+                        
+                        <!-- OpenAI Settings (shown by default) -->
+                        <div id="openaiSettings" class="provider-settings">
+                            <div class="mb-3">
+                                <label for="openaiApiKey" class="form-label">Votre clé API OpenAI:</label>
+                                <input type="password" class="form-control" id="openaiApiKey" placeholder="sk-...">
+                                <div class="form-text">Utilisation du modèle GPT-4o-mini d'OpenAI</div>
+                                <div class="form-text">Vous devez fournir votre propre clé API OpenAI. Vous pouvez en obtenir une sur <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ollama Settings (hidden by default) -->
+                        <div id="ollamaSettings" class="provider-settings" style="display: none;">
+                            <div class="mb-3">
+                                <label for="ollamaModel" class="form-label">Sélectionnez un modèle Ollama :</label>
+                                <select class="form-select" id="ollamaModel">
+                                    <option value="">Chargement des modèles...</option>
+                                </select>
+                                <div class="form-text ollamaStatus">Vérification de la connexion au serveur Ollama...</div>
+                                <div class="form-text">Note : Tout contenu <code>&lt;thinking&gt;</code> du modèle sera filtré des réponses.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    <table class="splitchattable">
-        <tr>
-            <td>
-                <div class="chatcontainer">
-                    <h3 class="containerheader">Messages</h3>
+                <!-- Feature Toggles -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h3 class="mb-0">Paramètres des Fonctionnalités</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Moderation Toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="showModerationToggle">
+                            <label class="form-check-label" for="showModerationToggle">Activer la modération de contenu</label>
+                            <div class="form-text">Analyser les messages pour détecter le contenu inapproprié et afficher les détails de modération</div>
+                        </div>
+                        
+                        <!-- AI Responses Toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="showResponsesToggle">
+                            <label class="form-check-label" for="showResponsesToggle">Activer les réponses suggérées par l'IA</label>
+                            <div class="form-text">Générer des réponses automatiques aux messages</div>
+                        </div>
+                        
+                        <!-- Notifications Settings -->
+                        <h4 class="mt-4 mb-3">Notifications</h4>
+                        
+                        <!-- Username Mention Notification Toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="enableMentionNotification" checked>
+                            <label class="form-check-label" for="enableMentionNotification">Notifications de mention d'utilisateur</label>
+                            <div class="form-text">Recevoir une notification lorsque votre nom d'utilisateur est mentionné</div>
+                        </div>
+                        
+                        <!-- Moderation Alert Notification Toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="enableModerationNotification" checked>
+                            <label class="form-check-label" for="enableModerationNotification">Alertes de modération</label>
+                            <div class="form-text">Recevoir une notification pour les messages signalés</div>
+                        </div>
+                        
+                        <!-- Sound Notification Toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="enableSoundToggle">
+                            <label class="form-check-label" for="enableSoundToggle">Activer les sons de notification</label>
+                            <div class="form-text">Jouer un son lors des notifications</div>
+                        </div>
+                        
+                        <!-- Theme Settings -->
+                        <h4 class="mt-4 mb-3">Apparence</h4>
+                        
+                        <!-- Dark Theme Toggle -->
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="darkThemeToggle">
+                            <label class="form-check-label" for="darkThemeToggle">Mode sombre</label>
+                            <div class="form-text">Activer l'apparence sombre de l'application</div>
+                        </div>
+                    </div>
                 </div>
-            </td>
-            <td>
-                <div class="giftcontainer">
-                    <h3 class="containerheader">Cadeaux</h3>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <pre id="stateText" class="p-3 bg-light rounded"></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="roomStats" class="p-3"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </td>
-        </tr>
-    </table>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h3 class="mb-0 text-center">Messages</h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="chatcontainer"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h3 class="mb-0 text-center">Cadeaux</h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="giftcontainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

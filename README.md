@@ -49,7 +49,5 @@ To use OpenAI for response suggestions:
 ## Todo
 
 - analyser les x dernier messages pour plus de contexte de sugestion de réponse
-- ajouter une bizarre list + notification de "à rejoint"
-- ajouter liste d'ami + notification de "à rejoint"
 - notification si qqn veut monter par analyse llm
 - répondre par copier/coller dans le chat

@@ -180,14 +180,49 @@ function updateModerationSummaryUI() {
 }
 
 $(document).ready(() => {
-    $('#connectButton').click(connect);
-    $('#uniqueIdInput').on('keyup', function (e) {
-        if (e.key === 'Enter') {
-            connect();
+    // Initialize tooltips and popovers from Bootstrap
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+    
+    // Update theme handling
+    function setTheme(isDark) {
+        if (isDark) {
+            $('body').addClass('dark-theme');
+            $('html').attr('data-bs-theme', 'dark');
+            $('#darkThemeToggle').prop('checked', true);
+        } else {
+            $('body').removeClass('dark-theme');
+            $('html').attr('data-bs-theme', 'light');
+            $('#darkThemeToggle').prop('checked', false);
         }
+    }
+    
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('darkTheme');
+    setTheme(savedTheme === 'true');
+    
+    // Handle dark theme toggle
+    $('#darkThemeToggle').change(function() {
+        const isDark = $(this).is(':checked');
+        setTheme(isDark);
+        localStorage.setItem('darkTheme', isDark.toString());
     });
     
-    // Setup notification container with clear button
+    // Connect button functionality
+    $('#connectButton').click(connect);
+    
+    // Remove any existing click handlers and add new one for toggle user lists panel
+    //$('#toggleUserLists').off('click').on('click', function(event) {
+      //  toggleUserListsPanel(event);
+    //});
+    
+    // Handle tabs with Bootstrap
+    // No need for custom tab handling as Bootstrap handles it with data-bs-toggle
+    
+    // Load user lists
+    loadUserLists();
+    
+    // Setup notification permissions
     setupNotifications();
     
     // AI Provider Selection
@@ -229,24 +264,6 @@ $(document).ready(() => {
     $('#enableSoundToggle').on('change', function() {
         enableSoundNotifications = $(this).is(':checked');
     });
-    
-    // Dark theme toggle handler
-    $('#darkThemeToggle').on('change', function() {
-        if ($(this).is(':checked')) {
-            $('body').addClass('dark-theme');
-            localStorage.setItem('darkTheme', 'true');
-        } else {
-            $('body').removeClass('dark-theme');
-            localStorage.setItem('darkTheme', 'false');
-        }
-    });
-    
-    // Apply dark theme from local storage if saved
-    const savedTheme = localStorage.getItem('darkTheme');
-    if (savedTheme === 'true') {
-        $('body').addClass('dark-theme');
-        $('#darkThemeToggle').prop('checked', true);
-    }
     
     // Initialize values from URL parameters (for OBS overlay)
     if (window.settings.showModeration !== undefined) {
@@ -707,109 +724,252 @@ function addChatItem(color, data, text, summarize) {
 
 // Load user lists on startup
 function loadUserLists() {
-    // Load friends
-    fetch('/api/users/friends')
-        .then(response => response.json())
-        .then(data => {
-            currentUsersList.friends = data;
-            updateUserListsUI();
-        })
-        .catch(error => console.error('Error loading friends:', error));
+    console.log('Chargement des listes d\'utilisateurs...');
     
-    // Load undesirables
-    fetch('/api/users/undesirables')
-        .then(response => response.json())
-        .then(data => {
-            currentUsersList.undesirables = data;
+    // Initialize lists if not already done
+    if (!currentUsersList) {
+        currentUsersList = {
+            friends: [],
+            undesirables: []
+        };
+    }
+    
+    // Show loading indicators in lists
+    $('#friendsList').html('<div class="d-flex justify-content-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div></div>');
+    $('#undesirablesList').html('<div class="d-flex justify-content-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div></div>');
+    
+    // Track loading state
+    let friendsLoaded = false;
+    let undesirableLoaded = false;
+    
+    // Function to update UI once both lists are loaded
+    function updateUI() {
+        if (friendsLoaded && undesirableLoaded) {
+            console.log("Both lists loaded, updating UI");
             updateUserListsUI();
+        }
+    }
+    
+    // Load friends with fetch API
+    fetch('/api/users/friends')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+            return response.json();
         })
-        .catch(error => console.error('Error loading undesirables:', error));
+        .then(data => {
+            console.log(`${data.length} amis chargés`);
+            currentUsersList.friends = data;
+            friendsLoaded = true;
+            updateUI();
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des amis:', error);
+            // Set empty list on error to avoid undefined errors
+            currentUsersList.friends = [];
+            // Show error in friends list
+            $('#friendsList').html(`<div class="alert alert-danger">Erreur lors du chargement des amis: ${error.message}</div>`);
+            friendsLoaded = true;
+            updateUI();
+        });
+    
+    // Load undesirables with fetch API
+    fetch('/api/users/undesirables')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(`${data.length} indésirables chargés`);
+            currentUsersList.undesirables = data;
+            undesirableLoaded = true;
+            updateUI();
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des indésirables:', error);
+            // Set empty list on error to avoid undefined errors
+            currentUsersList.undesirables = [];
+            // Show error in undesirables list
+            $('#undesirablesList').html(`<div class="alert alert-danger">Erreur lors du chargement des indésirables: ${error.message}</div>`);
+            undesirableLoaded = true;
+            updateUI();
+        });
 }
 
 // Update the user lists UI
 function updateUserListsUI() {
-    // Only update if the user lists panel is visible
-    if (!userListsVisible) return;
+    // No need to check if panel is visible - always update the lists
+    // This ensures data is ready when panel is opened
     
     const friendsList = $('#friendsList');
     const undesirablesList = $('#undesirablesList');
     
+    console.log('Mise à jour des listes d\'utilisateurs');
+    console.log(`Amis: ${currentUsersList.friends.length}`);
+    console.log(`Indésirables: ${currentUsersList.undesirables.length}`);
+    
+    // Debug - check if elements exist
+    console.log('friendsList element exists:', friendsList.length > 0);
+    console.log('undesirablesList element exists:', undesirablesList.length > 0);
+    
+    // Debug - show current user lists data
+    console.log('Friends data:', JSON.stringify(currentUsersList.friends));
+    console.log('Undesirables data:', JSON.stringify(currentUsersList.undesirables));
+    
     // Update friends list
     friendsList.empty();
-    if (currentUsersList.friends.length === 0) {
+    if (!currentUsersList.friends || currentUsersList.friends.length === 0) {
         friendsList.append('<div class="empty-list-message">Aucun ami dans la liste</div>');
     } else {
         currentUsersList.friends.forEach(friend => {
             const lastSeen = new Date(friend.last_seen).toLocaleString();
             const item = $(`
-                <div class="user-list-item" data-tiktok-id="${friend.tiktok_id}">
-                    <div class="user-info">
-                        <a href="https://www.tiktok.com/@${friend.tiktok_id}" target="_blank" class="user-nickname">${friend.nickname}</a>
-                        <span class="user-id">@${friend.tiktok_id}</span>
-                        <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
-                    </div>
-                    <div class="user-actions">
-                        <button class="remove-friend" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">Retirer</button>
-                        <button class="move-to-undesirable" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">Déplacer vers indésirables</button>
+                <div class="user-list-item card mb-2" data-tiktok-id="${friend.nickname}">
+                    <div class="card-body">
+                        <div class="user-info">
+                            <a href="https://www.tiktok.com/@${friend.tiktok_id}" target="_blank" class="user-nickname">${friend.nickname}</a>
+                            <span class="user-id">@${friend.tiktok_id}</span>
+                            <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
+                        </div>
+                        <div class="user-actions mt-2">
+                            <button class="remove-friend btn btn-sm btn-outline-danger" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">
+                                <i class="bi bi-trash me-1"></i>Retirer
+                            </button>
+                            <button class="move-to-undesirable btn btn-sm btn-outline-warning ms-2" data-tiktok-id="${friend.tiktok_id}" data-nickname="${friend.nickname}">
+                                <i class="bi bi-arrow-right me-1"></i>Déplacer vers indésirables
+                            </button>
+                        </div>
                     </div>
                 </div>
             `);
+            
+            console.log('Adding friend item to DOM:', friend.nickname);
             friendsList.append(item);
         });
     }
     
     // Update undesirables list
     undesirablesList.empty();
-    if (currentUsersList.undesirables.length === 0) {
+    if (!currentUsersList.undesirables || currentUsersList.undesirables.length === 0) {
         undesirablesList.append('<div class="empty-list-message">Aucun utilisateur indésirable dans la liste</div>');
     } else {
         currentUsersList.undesirables.forEach(user => {
             const lastSeen = new Date(user.last_seen).toLocaleString();
             const reason = user.reason ? `<span class="undesirable-reason">Raison: ${user.reason}</span>` : '';
             const item = $(`
-                <div class="user-list-item" data-tiktok-id="${user.tiktok_id}">
-                    <div class="user-info">
-                        <a href="https://www.tiktok.com/@${user.tiktok_id}" target="_blank" class="user-nickname">${user.nickname}</a>
-                        <span class="user-id">@${user.tiktok_id}</span>
-                        <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
-                        ${reason}
-                    </div>
-                    <div class="user-actions">
-                        <button class="remove-undesirable" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Retirer</button>
-                        <button class="move-to-friend" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">Déplacer vers amis</button>
+                <div class="user-list-item card mb-2" data-tiktok-id="${user.nickname}">
+                    <div class="card-body">
+                        <div class="user-info">
+                            <a href="https://www.tiktok.com/@${user.tiktok_id}" target="_blank" class="user-nickname">${user.nickname}</a>
+                            <span class="user-id">@${user.tiktok_id}</span>
+                            <span class="user-last-seen">Dernière apparition: ${lastSeen}</span>
+                            ${reason}
+                        </div>
+                        <div class="user-actions mt-2">
+                            <button class="remove-undesirable btn btn-sm btn-outline-danger" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">
+                                <i class="bi bi-trash me-1"></i>Retirer
+                            </button>
+                            <button class="move-to-friend btn btn-sm btn-outline-success ms-2" data-tiktok-id="${user.tiktok_id}" data-nickname="${user.nickname}">
+                                <i class="bi bi-arrow-right me-1"></i>Déplacer vers amis
+                            </button>
+                        </div>
                     </div>
                 </div>
             `);
+            
+            console.log('Adding undesirable item to DOM:', user.nickname);
             undesirablesList.append(item);
         });
     }
     
-    // Attach event listeners
+    // Debug - check final DOM content
+    console.log('Final friendsList HTML content:', friendsList.html());
+    console.log('Final undesirablesList HTML content:', undesirablesList.html());
+    
+    // Re-attach event listeners
+    attachUserActionListeners();
+}
+
+// Function to attach event listeners to user action buttons
+function attachUserActionListeners() {
+    // Remove old event listeners by cloning and replacing elements
+    $('.remove-friend').each(function() {
+        const clone = $(this).clone(true);
+        $(this).replaceWith(clone);
+    });
+    
+    $('.move-to-undesirable').each(function() {
+        const clone = $(this).clone(true);
+        $(this).replaceWith(clone);
+    });
+    
+    $('.remove-undesirable').each(function() {
+        const clone = $(this).clone(true);
+        $(this).replaceWith(clone);
+    });
+    
+    $('.move-to-friend').each(function() {
+        const clone = $(this).clone(true);
+        $(this).replaceWith(clone);
+    });
+    
+    // Add new event listeners
     $('.remove-friend').click(function() {
         const tiktokId = $(this).data('tiktok-id');
+        console.log(`Removing friend: ${tiktokId}`);
         removeFriend(tiktokId);
     });
     
     $('.move-to-undesirable').click(function() {
         const tiktokId = $(this).data('tiktok-id');
         const nickname = $(this).data('nickname');
+        console.log(`Moving to undesirable: ${tiktokId} (${nickname})`);
         moveToUndesirable(tiktokId, nickname);
     });
     
     $('.remove-undesirable').click(function() {
         const tiktokId = $(this).data('tiktok-id');
+        console.log(`Removing undesirable: ${tiktokId}`);
         removeUndesirable(tiktokId);
     });
     
     $('.move-to-friend').click(function() {
         const tiktokId = $(this).data('tiktok-id');
         const nickname = $(this).data('nickname');
+        console.log(`Moving to friend: ${tiktokId} (${nickname})`);
         moveToFriend(tiktokId, nickname);
+    });
+    
+    // User search results action buttons
+    $('.add-to-friends-search').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        console.log(`Adding to friends from search: ${tiktokId} (${nickname})`);
+        addToFriendsList(tiktokId, nickname);
+    });
+    
+    $('.add-to-undesirables-search').click(function() {
+        const tiktokId = $(this).data('tiktok-id');
+        const nickname = $(this).data('nickname');
+        const reason = prompt('Raison de l\'ajout aux indésirables (optionnel):');
+        console.log(`Adding to undesirables from search: ${tiktokId} (${nickname})`);
+        addToUndesirablesList(tiktokId, nickname, reason);
     });
 }
 
 // Add user to friends list
 function addToFriendsList(tiktokId, nickname) {
+    console.log(`Ajout de l'utilisateur ${nickname} (@${tiktokId}) aux amis`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Ajout de ${nickname} (@${tiktokId}) aux amis...
+    </div>`);
+    
     fetch('/api/users/friends', {
         method: 'POST',
         headers: {
@@ -817,19 +977,49 @@ function addToFriendsList(tiktokId, nickname) {
         },
         body: JSON.stringify({ tiktokId, nickname }),
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`${nickname} (@${tiktokId}) ajouté(e) aux amis`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                ${nickname} (@${tiktokId}) ajouté(e) aux amis
+            </div>`);
+            
+            // Switch to friends tab to show the new friend
+            $('#friends-tab-btn').tab('show');
+        } else {
+            showNotification(`<div class="text-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Erreur lors de l'ajout aux amis: ${data.error || 'Erreur inconnue'}
+            </div>`);
         }
     })
-    .catch(error => console.error('Error adding friend:', error));
+    .catch(error => {
+        console.error('Error adding friend:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors de l'ajout aux amis: ${error.message}
+        </div>`);
+    });
 }
 
 // Add user to undesirables list
 function addToUndesirablesList(tiktokId, nickname, reason = '') {
+    console.log(`Ajout de l'utilisateur ${nickname} (@${tiktokId}) aux indésirables ${reason ? `(raison: ${reason})` : ''}`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Ajout de ${nickname} (@${tiktokId}) aux indésirables...
+    </div>`);
+    
     fetch('/api/users/undesirables', {
         method: 'POST',
         headers: {
@@ -837,59 +1027,152 @@ function addToUndesirablesList(tiktokId, nickname, reason = '') {
         },
         body: JSON.stringify({ tiktokId, nickname, reason }),
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`${nickname} (@${tiktokId}) ajouté(e) aux indésirables`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                ${nickname} (@${tiktokId}) ajouté(e) aux indésirables
+            </div>`);
+            
+            // Switch to undesirables tab to show the new undesirable
+            $('#undesirables-tab-btn').tab('show');
+        } else {
+            showNotification(`<div class="text-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Erreur lors de l'ajout aux indésirables: ${data.error || 'Erreur inconnue'}
+            </div>`);
         }
     })
-    .catch(error => console.error('Error adding undesirable:', error));
+    .catch(error => {
+        console.error('Error adding undesirable:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors de l'ajout aux indésirables: ${error.message}
+        </div>`);
+    });
 }
 
 // Remove user from friends list
 function removeFriend(tiktokId) {
+    console.log(`Suppression de l'ami ${tiktokId}`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Suppression en cours...
+    </div>`);
+    
     fetch(`/api/users/friends/${tiktokId}`, {
         method: 'DELETE',
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`Utilisateur retiré des amis`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                Utilisateur retiré des amis
+            </div>`);
+        } else {
+            showNotification(`<div class="text-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Erreur lors de la suppression: ${data.error || 'Erreur inconnue'}
+            </div>`);
         }
     })
-    .catch(error => console.error('Error removing friend:', error));
+    .catch(error => {
+        console.error('Error removing friend:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors de la suppression: ${error.message}
+        </div>`);
+    });
 }
 
 // Remove user from undesirables list
 function removeUndesirable(tiktokId) {
+    console.log(`Suppression de l'indésirable ${tiktokId}`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Suppression en cours...
+    </div>`);
+    
     fetch(`/api/users/undesirables/${tiktokId}`, {
         method: 'DELETE',
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`Utilisateur retiré des indésirables`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                Utilisateur retiré des indésirables
+            </div>`);
+        } else {
+            showNotification(`<div class="text-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Erreur lors de la suppression: ${data.error || 'Erreur inconnue'}
+            </div>`);
         }
     })
-    .catch(error => console.error('Error removing undesirable:', error));
+    .catch(error => {
+        console.error('Error removing undesirable:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors de la suppression: ${error.message}
+        </div>`);
+    });
 }
 
 // Move user from friends to undesirables
 function moveToUndesirable(tiktokId, nickname) {
     const reason = prompt('Raison de l\'ajout aux indésirables (optionnel):');
     
+    console.log(`Déplacement de ${nickname} (@${tiktokId}) vers les indésirables ${reason ? `(raison: ${reason})` : ''}`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Déplacement de ${nickname} vers les indésirables...
+    </div>`);
+    
     // First remove from friends
     fetch(`/api/users/friends/${tiktokId}`, {
         method: 'DELETE',
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP lors de la suppression des amis: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        if (!data.success) {
+            throw new Error(`Échec de la suppression des amis: ${data.error || 'Erreur inconnue'}`);
+        }
+        
         // Then add to undesirables
         return fetch('/api/users/undesirables', {
             method: 'POST',
@@ -899,25 +1182,64 @@ function moveToUndesirable(tiktokId, nickname) {
             body: JSON.stringify({ tiktokId, nickname, reason }),
         });
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP lors de l'ajout aux indésirables: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`${nickname} déplacé vers les indésirables`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                ${nickname} déplacé vers les indésirables
+            </div>`);
+            
+            // Switch to undesirables tab
+            $('#undesirables-tab-btn').tab('show');
+        } else {
+            throw new Error(`Échec de l'ajout aux indésirables: ${data.error || 'Erreur inconnue'}`);
         }
     })
-    .catch(error => console.error('Error moving user to undesirables:', error));
+    .catch(error => {
+        console.error('Error moving user to undesirables:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors du déplacement vers les indésirables: ${error.message}
+        </div>`);
+        
+        // Reload lists to ensure consistent state
+        loadUserLists();
+    });
 }
 
 // Move user from undesirables to friends
 function moveToFriend(tiktokId, nickname) {
+    console.log(`Déplacement de ${nickname} (@${tiktokId}) vers les amis`);
+    
+    // Afficher un indicateur de chargement
+    showNotification(`<div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        Déplacement de ${nickname} vers les amis...
+    </div>`);
+    
     // First remove from undesirables
     fetch(`/api/users/undesirables/${tiktokId}`, {
         method: 'DELETE',
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP lors de la suppression des indésirables: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        if (!data.success) {
+            throw new Error(`Échec de la suppression des indésirables: ${data.error || 'Erreur inconnue'}`);
+        }
+        
         // Then add to friends
         return fetch('/api/users/friends', {
             method: 'POST',
@@ -927,15 +1249,37 @@ function moveToFriend(tiktokId, nickname) {
             body: JSON.stringify({ tiktokId, nickname }),
         });
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP lors de l'ajout aux amis: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Reload lists
             loadUserLists();
-            showNotification(`${nickname} déplacé vers les amis`);
+            showNotification(`<div class="text-success">
+                <i class="bi bi-check-circle me-2"></i>
+                ${nickname} déplacé vers les amis
+            </div>`);
+            
+            // Switch to friends tab
+            $('#friends-tab-btn').tab('show');
+        } else {
+            throw new Error(`Échec de l'ajout aux amis: ${data.error || 'Erreur inconnue'}`);
         }
     })
-    .catch(error => console.error('Error moving user to friends:', error));
+    .catch(error => {
+        console.error('Error moving user to friends:', error);
+        showNotification(`<div class="text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Erreur lors du déplacement vers les amis: ${error.message}
+        </div>`);
+        
+        // Reload lists to ensure consistent state
+        loadUserLists();
+    });
 }
 
 // Show notification
@@ -989,13 +1333,50 @@ function showJoinNotification(data, userType) {
 }
 
 // Toggle user lists panel
-function toggleUserListsPanel() {
+function toggleUserListsPanel(event) {
+    // Prevent default behavior and stop propagation
+    if (event) {
+        //event.preventDefault();
+        //event.stopPropagation();
+    }
+    
+    console.log("Toggling user lists panel. Current visibility:", userListsVisible);
+    
     userListsVisible = !userListsVisible;
+    
     if (userListsVisible) {
-        $('#user-lists-panel').show();
-        loadUserLists(); // Refresh lists when panel is shown
+        console.log("Opening user lists panel");
+        $('#user-lists-panel').fadeIn(200);
+        $('#toggleUserLists').addClass('active');
+        
+        // Reload user lists when opening panel
+        loadUserLists();
+        
+        // Make sure the correct tab is active based on Bootstrap's tab system
+        if (!$('.tab-pane.active').length) {
+            // Activate first tab if none is active
+            $('#friends-tab-btn').tab('show');
+        }
+        
+        // Ensure the tabs are clickable and working correctly
+        $('#undesirables-tab-btn').off('click').on('click', function() {
+            console.log("Undesirables tab clicked");
+            $(this).tab('show');
+        });
+        
+        $('#friends-tab-btn').off('click').on('click', function() {
+            console.log("Friends tab clicked");
+            $(this).tab('show');
+        });
+        
+        $('#search-tab-btn').off('click').on('click', function() {
+            console.log("Search tab clicked");
+            $(this).tab('show');
+        });
     } else {
-        $('#user-lists-panel').hide();
+        console.log("Closing user lists panel");
+        $('#user-lists-panel').fadeOut(200);
+        $('#toggleUserLists').removeClass('active');
     }
 }
 
@@ -1343,7 +1724,11 @@ function addGiftItem(data) {
 function setupNotifications() {
     // Add clear all button if it doesn't exist yet
     if ($('.clear-notifications').length === 0) {
-        const clearButton = $('<button class="clear-notifications">Effacer tout</button>');
+        const clearButton = $(`
+            <button class="clear-notifications btn btn-sm">
+                <i class="bi bi-x-circle me-1"></i>Effacer tout
+            </button>
+        `);
         
         // Add click handler to clear all notifications
         clearButton.on('click', function() {
