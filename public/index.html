@@ -21,6 +21,7 @@
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@latest"></script>
 
     <script src="connection.js"></script>
     <script src="app.js"></script>
@@ -44,8 +45,9 @@
             let aiModel = $('#ollamaModel').val();
             let openaiApiKey = $('#openaiApiKey').val();
             let darkTheme = $('#darkThemeToggle').is(':checked') ? 1 : 0;
+            let enableFlvStream = $('#enableFlvStreamToggle').is(':checked') ? 1 : 0;
             
-            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&showModeration=${showModeration}&showResponses=${showResponses}&enableSound=${enableSound}&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em&aiProvider=${aiProvider}&darkTheme=${darkTheme}`;
+            let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&showModeration=${showModeration}&showResponses=${showResponses}&enableSound=${enableSound}&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em&aiProvider=${aiProvider}&darkTheme=${darkTheme}&enableFlvStream=${enableFlvStream}`;
             
             // Add model parameter if Ollama is selected
             if (aiProvider === 'ollama' && aiModel) {
@@ -266,8 +268,7 @@
 
     <div class="container py-4">
         <div class="row">
-            <div class="col-12">
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm mb-4 col-6">
                     <div class="card-body">
                         <h2 class="card-title">Lecteur de Chat TikTok LIVE</h2>
                         
@@ -296,7 +297,7 @@
                 </div>
                 
                 <!-- AI Provider Selection -->
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm mb-4 col-6">
                     <div class="card-header">
                         <h3 class="mb-0">Fournisseur de Réponses IA</h3>
                     </div>
@@ -337,61 +338,67 @@
                 </div>
 
                 <!-- Feature Toggles -->
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm mb-4 col-12">
                     <div class="card-header">
                         <h3 class="mb-0">Paramètres des Fonctionnalités</h3>
                     </div>
                     <div class="card-body">
-                        <!-- Moderation Toggle -->
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="showModerationToggle">
-                            <label class="form-check-label" for="showModerationToggle">Activer la modération de contenu</label>
-                            <div class="form-text">Analyser les messages pour détecter le contenu inapproprié et afficher les détails de modération</div>
-                        </div>
-                        
-                        <!-- AI Responses Toggle -->
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="showResponsesToggle">
-                            <label class="form-check-label" for="showResponsesToggle">Activer les réponses suggérées par l'IA</label>
-                            <div class="form-text">Générer des réponses automatiques aux messages</div>
-                        </div>
-                        
-                        <!-- Notifications Settings -->
-                        <h4 class="mt-4 mb-3">Notifications</h4>
-                        
-                        <!-- Username Mention Notification Toggle -->
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="enableMentionNotification" checked>
-                            <label class="form-check-label" for="enableMentionNotification">Notifications de mention d'utilisateur</label>
-                            <div class="form-text">Recevoir une notification lorsque votre nom d'utilisateur est mentionné</div>
-                        </div>
-                        
-                        <!-- Moderation Alert Notification Toggle -->
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="enableModerationNotification" checked>
-                            <label class="form-check-label" for="enableModerationNotification">Alertes de modération</label>
-                            <div class="form-text">Recevoir une notification pour les messages signalés</div>
-                        </div>
-                        
-                        <!-- Sound Notification Toggle -->
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="enableSoundToggle">
-                            <label class="form-check-label" for="enableSoundToggle">Activer les sons de notification</label>
-                            <div class="form-text">Jouer un son lors des notifications</div>
-                        </div>
-                        
-                        <!-- Theme Settings -->
-                        <h4 class="mt-4 mb-3">Apparence</h4>
-                        
-                        <!-- Dark Theme Toggle -->
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="darkThemeToggle">
-                            <label class="form-check-label" for="darkThemeToggle">Mode sombre</label>
-                            <div class="form-text">Activer l'apparence sombre de l'application</div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <!-- Moderation Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="showModerationToggle">
+                                    <label class="form-check-label" for="showModerationToggle">Activer la modération de contenu</label>
+                                    <div class="form-text">Analyser les messages pour détecter le contenu inapproprié et afficher les détails de modération</div>
+                                </div>
+                                
+                                <!-- AI Responses Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="showResponsesToggle">
+                                    <label class="form-check-label" for="showResponsesToggle">Activer les réponses suggérées par l'IA</label>
+                                    <div class="form-text">Générer des réponses automatiques aux messages</div>
+                                </div>
+                                
+                                <!-- Username Mention Notification Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enableMentionNotification" checked>
+                                    <label class="form-check-label" for="enableMentionNotification">Notifications de mention d'utilisateur</label>
+                                    <div class="form-text">Recevoir une notification lorsque votre nom d'utilisateur est mentionné</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <!-- Moderation Alert Notification Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enableModerationNotification" checked>
+                                    <label class="form-check-label" for="enableModerationNotification">Alertes de modération</label>
+                                    <div class="form-text">Recevoir une notification pour les messages signalés</div>
+                                </div>
+                                
+                                <!-- Sound Notification Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enableSoundToggle">
+                                    <label class="form-check-label" for="enableSoundToggle">Activer les sons de notification</label>
+                                    <div class="form-text">Jouer un son lors des notifications</div>
+                                </div>
+                                
+                                <!-- Dark Theme Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="darkThemeToggle">
+                                    <label class="form-check-label" for="darkThemeToggle">Mode sombre</label>
+                                    <div class="form-text">Activer l'apparence sombre de l'application</div>
+                                </div>
+                                
+                                <!-- FLV Stream Toggle -->
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enableFlvStreamToggle" checked>
+                                    <label class="form-check-label" for="enableFlvStreamToggle">Activer le flux vidéo</label>
+                                    <div class="form-text">Activer le chargement du flux vidéo TikTok LIVE</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
         
         <div class="row mt-4">
@@ -405,6 +412,25 @@
                             <div class="col-md-6">
                                 <div id="roomStats" class="p-3"></div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="videoContainer" class="row mt-4" style="display:none;">
+            <div class="col-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h3 class="mb-0 text-center">Vidéo TikTok LIVE</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="ratio ratio-16x9">
+                            <video id="flvPlayer" controls autoplay muted playsinline></video>
+                        </div>
+                        <div class="mt-2 text-muted small">
+                            <p class="mb-1">Remarque: La vidéo se lance automatiquement dès la connexion. Si elle ne démarre pas, cliquez sur le lecteur.</p>
+                            <p class="mb-0">Le son est initialement coupé pour respecter les politiques d'autoplay des navigateurs. Cliquez sur l'icône du son pour l'activer.</p>
                         </div>
                     </div>
                 </div>

@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.env
+.git
+.github
+.gitignore
+.vscode
+.idea
+.dockerignore
+Dockerfile
+docker-compose.yml
+data
+*.md
+.env.*
+!.env.example

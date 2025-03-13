@@ -3,6 +3,33 @@ body {
     min-width: 800px;
 }
 
+/* Video player styles */
+#videoContainer .card {
+    overflow: hidden;
+}
+
+#videoContainer .ratio {
+    background-color: #000;
+    border-radius: 0.25rem;
+}
+
+#flvPlayer {
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    object-fit: contain;
+}
+
+[data-bs-theme="dark"] #videoContainer .card-body {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-bs-theme="dark"] #videoContainer .text-muted {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* End of video player styles */
+
 h1 {
     font-size: 1.8em;
     margin-top: 0px;
@@ -694,8 +721,6 @@ body.dark-theme .moderation-reason {
     background-color: #fff;
     border-bottom-color: #fff;
 }
-
-
 
 .username-container {
     display: inline-flex;

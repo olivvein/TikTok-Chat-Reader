@@ -7,6 +7,9 @@ let viewerCount = 0;
 let likeCount = 0;
 let diamondsCount = 0;
 
+// Global flvPlayer reference
+let flvPlayer = null;
+
 // Moderation settings
 let showModerationResults = false;
 // AI Response settings
@@ -23,6 +26,8 @@ let aiProvider = 'openai';
 let aiModel = '';
 // Store available Ollama models
 let availableOllamaModels = [];
+// FLV Stream setting
+let enableFlvStream = true;
 
 // Global variables for moderation stats
 let moderationStats = {
@@ -265,6 +270,31 @@ $(document).ready(() => {
         enableSoundNotifications = $(this).is(':checked');
     });
     
+    // FLV Stream toggle handler
+    $('#enableFlvStreamToggle').on('change', function() {
+        enableFlvStream = $(this).is(':checked');
+        
+        // If stream is disabled and player exists, stop the video
+        if (!enableFlvStream && flvPlayer) {
+            // Hide video container
+            $('#videoContainer').hide();
+            
+            // Clean up player
+            flvPlayer.pause();
+            flvPlayer.unload();
+            flvPlayer.detachMediaElement();
+            flvPlayer.destroy();
+            flvPlayer = null;
+        } else if (enableFlvStream && connection.isConnected) {
+            // If stream is enabled and we're already connected, try to reinitialize the player
+            const streamUrl = connection.getStreamUrl();
+            if (streamUrl) {
+                $('#videoContainer').show();
+                initializeVideoPlayer(streamUrl);
+            }
+        }
+    });
+    
     // Initialize values from URL parameters (for OBS overlay)
     if (window.settings.showModeration !== undefined) {
         showModerationResults = !!window.settings.showModeration;
@@ -294,6 +324,12 @@ $(document).ready(() => {
     if (window.settings.yourUsername !== undefined) {
         yourUsername = window.settings.yourUsername;
         $('#yourUsernameInput').val(yourUsername);
+    }
+    
+    // Apply FLV stream setting from URL parameter (for OBS overlay)
+    if (window.settings.enableFlvStream !== undefined) {
+        enableFlvStream = !!parseInt(window.settings.enableFlvStream);
+        $('#enableFlvStreamToggle').prop('checked', enableFlvStream);
     }
     
     // Apply dark theme from URL parameter (for OBS overlay)
@@ -452,6 +488,55 @@ $(document).ready(() => {
     loadUserLists();
 })
 
+// Function to initialize or update the video player with a stream URL
+function initializeVideoPlayer(streamUrl) {
+    // Check if flvjs is supported
+    if (!flvjs.isSupported()) {
+        console.error('FLV playback is not supported in this browser.');
+        return;
+    }
+    
+    console.log('Initializing video player with URL:', streamUrl);
+    const videoElement = document.getElementById('flvPlayer');
+    
+    if (!videoElement) {
+        console.error('Video element with ID "flvPlayer" not found in the DOM');
+        return;
+    }
+    
+    // Destroy existing player if it exists
+    if (flvPlayer) {
+        flvPlayer.pause();
+        flvPlayer.unload();
+        flvPlayer.detachMediaElement();
+        flvPlayer.destroy();
+        flvPlayer = null;
+    }
+    
+    // Create new player with the stream URL
+    flvPlayer = flvjs.createPlayer({
+        type: 'flv',
+        url: streamUrl,
+        isLive: true
+    });
+    
+    flvPlayer.attachMediaElement(videoElement);
+    flvPlayer.load();
+    
+    // Ensure video container is visible
+    $('#videoContainer').show();
+    
+    // Set autoplay attribute and play
+    videoElement.autoplay = true;
+    
+    // Play the video (may be blocked by browser autoplay policies)
+    flvPlayer.play().catch(error => {
+        console.warn('Auto-play was prevented by the browser. Please click play:', error);
+        // Show a message to the user that they need to interact with the video
+        $('#videoContainer').prepend('<div class="alert alert-warning alert-dismissible fade show" role="alert">Cliquez sur le lecteur vidéo pour lancer la lecture<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+    });
+}
+
 function connect() {
     let uniqueId = window.settings.username || $('#uniqueIdInput').val();
     if (uniqueId !== '') {
@@ -475,8 +560,32 @@ function connect() {
             }
         }
 
-        connection.connect(uniqueId, options).then(state => {
+        connection.connect(uniqueId, options).then((state,data) => {
+            console.log('Connecté à la salle', state.roomId);
+            console.log(state);
+            console.log(data);
+            // This is the URL of the video stream flv
+            const streamUrl = state.roomInfo.stream_url.flv_pull_url.SD1;
+            console.log(state.roomInfo.stream_url.flv_pull_url);
+            console.log('Stream URL:', streamUrl);
             $('#stateText').text(`Connecté à la salle ${state.roomId}`);
+
+            // Initialize video player with the stream URL only if enabled
+            if (streamUrl && enableFlvStream) {
+                initializeVideoPlayer(streamUrl);
+                // Store the stream URL in the connection object for later use
+                connection.getStreamUrl = function() { return streamUrl; };
+                connection.isConnected = true;
+            } else if (!enableFlvStream) {
+                console.log('FLV stream disabled by user setting');
+                $('#videoContainer').hide();
+                connection.getStreamUrl = function() { return streamUrl; };
+                connection.isConnected = true;
+            } else {
+                console.error('No stream URL available');
+                $('#videoContainer').html('<div class="alert alert-danger">Aucun flux vidéo disponible pour ce direct</div>');
+                connection.isConnected = false;
+            }
 
             // reset stats
             viewerCount = 0;
@@ -489,6 +598,9 @@ function connect() {
 
         }).catch(errorMessage => {
             $('#stateText').text(errorMessage);
+            
+            // Hide video container on error
+            $('#videoContainer').hide();
 
             // schedule next try if obs username set
             if (window.settings.username) {
@@ -886,8 +998,8 @@ function updateUserListsUI() {
     }
     
     // Debug - check final DOM content
-    console.log('Final friendsList HTML content:', friendsList.html());
-    console.log('Final undesirablesList HTML content:', undesirablesList.html());
+    //console.log('Final friendsList HTML content:', friendsList.html());
+    //console.log('Final undesirablesList HTML content:', undesirablesList.html());
     
     // Re-attach event listeners
     attachUserActionListeners();
@@ -1383,13 +1495,15 @@ function toggleUserListsPanel(event) {
 // Check user status when user information is available
 function checkUserStatus(data) {
     if (data && data.uniqueId) {
-        socket.emit('getUserStatus', data.uniqueId);
+        //socket.emit('getUserStatus', data.uniqueId);
     }
 }
 
 // viewer stats
 connection.on('roomUser', (msg) => {
     if (typeof msg.viewerCount === 'number') {
+        console.log('Room user:');
+        console.log(msg);
         viewerCount = msg.viewerCount;
         updateRoomStats();
     }
@@ -1658,8 +1772,21 @@ connection.on('social', (data) => {
     addChatItem(color, data, data.label.replace('{0:user}', ''));
 })
 
+// Handle stream end - clean up video player
 connection.on('streamEnd', () => {
     $('#stateText').text('Le direct est terminé.');
+    
+    // Clean up video player
+    if (flvPlayer) {
+        flvPlayer.pause();
+        flvPlayer.unload();
+        flvPlayer.detachMediaElement();
+        flvPlayer.destroy();
+        flvPlayer = null;
+    }
+    
+    // Show stream ended message
+    $('#videoContainer').html('<div class="alert alert-info">Le direct est terminé</div>');
 
     // schedule next try if obs username set
     if (window.settings.username) {

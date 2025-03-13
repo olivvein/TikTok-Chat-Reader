@@ -17,7 +17,7 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: "dummy-key",
 });
 
 // Enable cross origin resource sharing
@@ -328,7 +328,7 @@ io.on('connection', (socket) => {
                     const moderationResult = await moderateTextWithOllama(msg.comment, socket.aiModel);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
-                        console.log('Moderation result');
+                        //console.log('Moderation result');
                         
                         // Log flagged content to server console
                         if (moderationResult.flagged) {
@@ -342,7 +342,7 @@ io.on('connection', (socket) => {
                     console.log('Moderation with OpenAI');
                     console.log(msg.comment);
                     const moderationResult = await moderateText(msg.comment, socket.openaiApiKey || process.env.OPENAI_API_KEY);
-                    console.log(moderationResult);
+                    //console.log(moderationResult);
                     if (moderationResult) {
                         msg.moderation = moderationResult;
                         
@@ -368,7 +368,7 @@ io.on('connection', (socket) => {
             try {
                 //console.log(msg);
                 if (socket.showResponses) {
-                    console.log('Generating response');
+                    //console.log('Generating response');
                     let theMessage=msg.nickname + ' à dit : "' + msg.comment + '"';
                     // if msg comment start with @[username] make nickname à écrit à [username] : comment
                     if (msg.comment.startsWith('@')) {
@@ -384,7 +384,7 @@ io.on('connection', (socket) => {
                     if (suggestedResponse) {
                         msg.suggestedResponse = suggestedResponse;
 
-                        console.log(msg.suggestedResponse);
+                        //console.log(msg.suggestedResponse);
                     }
                 }
             } catch (error) {
@@ -435,7 +435,7 @@ io.on('connection', (socket) => {
 // Emit global connection statistics
 setInterval(() => {
     io.emit('statistic', { globalConnectionCount: getGlobalConnectionCount() });
-}, 5000)
+}, 2000)
 
 // Serve frontend files
 app.use(express.static('public'));
@@ -529,6 +529,6 @@ app.delete('/api/users/undesirables/:tiktokId', async (req, res) => {
 });
 
 // Start http listener
-const port = process.env.PORT || 8081;
+const port = 8081;
 httpServer.listen(port);
 console.info(`Server running! Please visit http://localhost:${port}`);
