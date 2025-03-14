@@ -9,6 +9,7 @@ const { OpenAI } = require('openai');
 const axios = require('axios');
 const db = require('./db'); // Import our database module
 const path = require('path'); // Add path module
+const cors = require('cors'); // Import cors package
 
 const app = express();
 const httpServer = createServer(app);
@@ -20,6 +21,13 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const openai = new OpenAI({
     apiKey: "dummy-key",
 });
+
+// Apply CORS middleware to Express
+app.use(cors({
+    origin: '*', // Allow all origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Enable cross origin resource sharing
 const io = new Server(httpServer, {

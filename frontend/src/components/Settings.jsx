@@ -22,7 +22,6 @@ const Settings = ({
             checked={darkTheme} 
             onChange={(e) => {
               setDarkTheme(e.target.checked);
-              localStorage.setItem('darkTheme', e.target.checked);
             }} 
           />
           Dark Theme

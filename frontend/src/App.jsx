@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import TikTokConnection from './utils/TikTokConnection'
+import * as UserApi from './utils/UserApi'
+
+// Import Bootstrap icons (if they're not already in index.html)
+// If you're using a bundler, you can use this import instead
+// import 'bootstrap-icons/font/bootstrap-icons.css'
 
 // Import components
 import ConnectionForm from './components/ConnectionForm'
@@ -48,6 +53,7 @@ function App() {
   // User lists
   const [friendsList, setFriendsList] = useState([])
   const [undesirablesList, setUndesirablesList] = useState([])
+  const [showUserLists, setShowUserLists] = useState(false)
   
   // Moderation stats
   const [moderationStats, setModerationStats] = useState({
@@ -71,6 +77,36 @@ function App() {
   const connectionRef = useRef(null)
   const flaggedCommentSoundRef = useRef(null)
   
+  // Function to apply dark theme
+  const applyTheme = (isDark) => {
+    if (isDark) {
+      document.documentElement.setAttribute('data-bs-theme', 'dark');
+      document.body.classList.add('dark-theme');
+      document.body.classList.remove('light-theme');
+    } else {
+      document.documentElement.setAttribute('data-bs-theme', 'light');
+      document.body.classList.remove('dark-theme');
+      document.body.classList.add('light-theme');
+    }
+  };
+  
+  // Update the setDarkTheme function to integrate with API and apply theme
+  const handleThemeChange = async (isDark) => {
+    setDarkTheme(isDark);
+    applyTheme(isDark);
+    
+    // Save to localStorage as fallback
+    localStorage.setItem('darkTheme', isDark);
+    
+    // Try to save to API
+    try {
+      await UserApi.saveUserPreferences({ darkTheme: isDark });
+    } catch (error) {
+      console.error('Error saving theme preference to API:', error);
+      // Continue with local storage fallback
+    }
+  };
+  
   // Initialize connection
   useEffect(() => {
     // With the proxy configuration, we can connect to the same origin
@@ -80,65 +116,104 @@ function App() {
       : undefined; // Will connect to same origin, proxied to port 8081
     connectionRef.current = new TikTokConnection(backendUrl);
     
-    // Load settings from localStorage
-    const loadSetting = (key, stateSetter, defaultValue = null) => {
-      const savedValue = localStorage.getItem(key);
-      if (savedValue !== null) {
-        try {
-          if (typeof defaultValue === 'boolean') {
-            // Handle boolean values
-            stateSetter(savedValue === 'true');
-          } else {
-            // Handle other values
-            stateSetter(savedValue);
-          }
-        } catch (e) {
-          console.error(`Error loading setting ${key}:`, e);
+    // Load all settings
+    const loadSettingsFromApi = async () => {
+      try {
+        // Try to get preferences from API first
+        const preferences = await UserApi.getUserPreferences();
+        
+        // Apply theme from API
+        if (preferences.darkTheme !== undefined) {
+          setDarkTheme(preferences.darkTheme);
+          applyTheme(preferences.darkTheme);
+        } else {
+          // Fallback to localStorage
+          const savedTheme = localStorage.getItem('darkTheme');
+          const isDark = savedTheme === null ? true : savedTheme === 'true';
+          setDarkTheme(isDark);
+          applyTheme(isDark);
         }
+        
+        // Apply other settings from API if available
+        // ...
+
+      } catch (error) {
+        console.error('Error loading preferences from API:', error);
+        
+        // Fallback to localStorage for all settings
+        const loadSetting = (key, stateSetter, defaultValue = null) => {
+          const savedValue = localStorage.getItem(key);
+          if (savedValue !== null) {
+            try {
+              if (typeof defaultValue === 'boolean') {
+                // Handle boolean values
+                stateSetter(savedValue === 'true');
+              } else {
+                // Handle other values
+                stateSetter(savedValue);
+              }
+            } catch (e) {
+              console.error(`Error loading setting ${key}:`, e);
+            }
+          }
+        };
+        
+        // Load theme from localStorage
+        const savedTheme = localStorage.getItem('darkTheme');
+        const isDark = savedTheme === null ? true : savedTheme === 'true';
+        setDarkTheme(isDark);
+        applyTheme(isDark);
+        
+        // Load other settings
+        loadSetting('showModeration', setShowModeration, false);
+        loadSetting('showAIResponses', setShowAIResponses, false);
+        loadSetting('enableSoundNotifications', setEnableSoundNotifications, false);
+        loadSetting('enableMentionNotifications', setEnableMentionNotifications, true);
+        loadSetting('enableFlvStream', setEnableFlvStream, true);
+        loadSetting('tiktokUsername', setYourUsername, '');
+        loadSetting('openaiApiKey', setOpenaiApiKey, '');
+        loadSetting('aiProvider', setAiProvider, 'openai');
+        loadSetting('aiModel', setAiModel, '');
+        loadSetting('autoScroll', setAutoScroll, true);
       }
     };
     
-    // Load all settings
-    loadSetting('darkTheme', setDarkTheme, true);
-    loadSetting('showModeration', setShowModeration, false);
-    loadSetting('showAIResponses', setShowAIResponses, false);
-    loadSetting('enableSoundNotifications', setEnableSoundNotifications, false);
-    loadSetting('enableMentionNotifications', setEnableMentionNotifications, true);
-    loadSetting('enableFlvStream', setEnableFlvStream, true);
-    loadSetting('tiktokUsername', setYourUsername, '');
-    loadSetting('openaiApiKey', setOpenaiApiKey, '');
-    loadSetting('aiProvider', setAiProvider, 'openai');
-    loadSetting('aiModel', setAiModel, '');
-    loadSetting('autoScroll', setAutoScroll, true);
+    loadSettingsFromApi();
     
-    // Load user lists from localStorage
-    const loadedFriends = localStorage.getItem('friendsList')
-    const loadedUndesirables = localStorage.getItem('undesirablesList')
+    // Load user lists from localStorage as fallback
+    const loadedFriends = localStorage.getItem('friendsList');
+    const loadedUndesirables = localStorage.getItem('undesirablesList');
     
     if (loadedFriends) {
       try {
-        setFriendsList(JSON.parse(loadedFriends))
+        setFriendsList(JSON.parse(loadedFriends));
       } catch (e) {
-        console.error('Error loading friends list', e)
+        console.error('Error loading friends list', e);
       }
     }
     
     if (loadedUndesirables) {
       try {
-        setUndesirablesList(JSON.parse(loadedUndesirables))
+        setUndesirablesList(JSON.parse(loadedUndesirables));
       } catch (e) {
-        console.error('Error loading undesirables list', e)
+        console.error('Error loading undesirables list', e);
       }
     }
     
     // Initialize sound
-    flaggedCommentSoundRef.current = new Audio('https://www.soundjay.com/misc/small-bell-ring-01a.mp3')
+    flaggedCommentSoundRef.current = new Audio('https://www.soundjay.com/misc/small-bell-ring-01a.mp3');
+    
+    // Load user lists from API
+    loadUserLists();
+    
+    // Request notification permission
+    requestNotificationPermission();
     
     return () => {
       // Cleanup
       // Any cleanup code goes here
-    }
-  }, [])
+    };
+  }, []);
   
   // Connect to TikTok LIVE
   const connect = async () => {
@@ -386,23 +461,65 @@ function App() {
     })
   }
   
-  const addToFriendsList = (userId, nickname) => {
-    const newFriend = {
-      tiktokId: userId,
-      nickname: nickname,
-      addedAt: new Date().toISOString()
-    }
-    
-    setFriendsList(prevList => {
-      // Don't add duplicates
-      if (prevList.some(item => item.tiktokId === userId)) {
-        return prevList
+  // Load user lists from API
+  const loadUserLists = async () => {
+    try {
+      const data = await UserApi.loadUserLists()
+      setFriendsList(data.friendsList || [])
+      setUndesirablesList(data.undesirablesList || [])
+    } catch (error) {
+      console.error('Error loading user lists:', error)
+      
+      // Fallback to localStorage if API fails
+      const savedFriends = localStorage.getItem('friendsList')
+      const savedUndesirables = localStorage.getItem('undesirablesList')
+      
+      if (savedFriends) {
+        try {
+          setFriendsList(JSON.parse(savedFriends))
+        } catch (e) {
+          console.error('Error parsing friends list from localStorage:', e)
+          setFriendsList([])
+        }
       }
       
-      const newList = [...prevList, newFriend]
-      localStorage.setItem('friendsList', JSON.stringify(newList))
-      return newList
-    })
+      if (savedUndesirables) {
+        try {
+          setUndesirablesList(JSON.parse(savedUndesirables))
+        } catch (e) {
+          console.error('Error parsing undesirables list from localStorage:', e)
+          setUndesirablesList([])
+        }
+      }
+    }
+  }
+  
+  // Add user to friends list
+  const addToFriendsList = async (userId, nickname) => {
+    try {
+      const updatedList = await UserApi.addToFriendsList(userId, nickname)
+      setFriendsList(updatedList)
+    } catch (error) {
+      console.error('Error adding friend:', error)
+      
+      // Fallback - add locally
+      const newFriend = {
+        tiktokId: userId,
+        nickname: nickname,
+        addedAt: new Date().toISOString()
+      }
+      
+      setFriendsList(prevList => {
+        // Don't add duplicates
+        if (prevList.some(item => item.tiktokId === userId)) {
+          return prevList
+        }
+        
+        const newList = [...prevList, newFriend]
+        localStorage.setItem('friendsList', JSON.stringify(newList))
+        return newList
+      })
+    }
     
     // Remove from undesirables if present
     setUndesirablesList(prevList => {
@@ -412,24 +529,33 @@ function App() {
     })
   }
   
-  const addToUndesirablesList = (userId, nickname, reason = '') => {
-    const newUndesirable = {
-      tiktokId: userId,
-      nickname: nickname,
-      reason: reason,
-      addedAt: new Date().toISOString()
-    }
-    
-    setUndesirablesList(prevList => {
-      // Don't add duplicates
-      if (prevList.some(item => item.tiktokId === userId)) {
-        return prevList
+  // Add user to undesirables list
+  const addToUndesirablesList = async (userId, nickname, reason = '') => {
+    try {
+      const updatedList = await UserApi.addToUndesirablesList(userId, nickname, reason)
+      setUndesirablesList(updatedList)
+    } catch (error) {
+      console.error('Error adding undesirable:', error)
+      
+      // Fallback - add locally
+      const newUndesirable = {
+        tiktokId: userId,
+        nickname: nickname,
+        reason: reason,
+        addedAt: new Date().toISOString()
       }
       
-      const newList = [...prevList, newUndesirable]
-      localStorage.setItem('undesirablesList', JSON.stringify(newList))
-      return newList
-    })
+      setUndesirablesList(prevList => {
+        // Don't add duplicates
+        if (prevList.some(item => item.tiktokId === userId)) {
+          return prevList
+        }
+        
+        const newList = [...prevList, newUndesirable]
+        localStorage.setItem('undesirablesList', JSON.stringify(newList))
+        return newList
+      })
+    }
     
     // Remove from friends if present
     setFriendsList(prevList => {
@@ -439,20 +565,43 @@ function App() {
     })
   }
   
-  const removeFriend = (userId) => {
-    setFriendsList(prevList => {
-      const newList = prevList.filter(item => item.tiktokId !== userId)
-      localStorage.setItem('friendsList', JSON.stringify(newList))
-      return newList
-    })
+  // Remove user from friends list
+  const removeFriend = async (userId) => {
+    try {
+      const updatedList = await UserApi.removeFriend(userId)
+      setFriendsList(updatedList)
+    } catch (error) {
+      console.error('Error removing friend:', error)
+      
+      // Fallback - remove locally
+      setFriendsList(prevList => {
+        const newList = prevList.filter(item => item.tiktokId !== userId)
+        localStorage.setItem('friendsList', JSON.stringify(newList))
+        return newList
+      })
+    }
   }
   
-  const removeUndesirable = (userId) => {
-    setUndesirablesList(prevList => {
-      const newList = prevList.filter(item => item.tiktokId !== userId)
-      localStorage.setItem('undesirablesList', JSON.stringify(newList))
-      return newList
-    })
+  // Remove user from undesirables list
+  const removeUndesirable = async (userId) => {
+    try {
+      const updatedList = await UserApi.removeUndesirable(userId)
+      setUndesirablesList(updatedList)
+    } catch (error) {
+      console.error('Error removing undesirable:', error)
+      
+      // Fallback - remove locally
+      setUndesirablesList(prevList => {
+        const newList = prevList.filter(item => item.tiktokId !== userId)
+        localStorage.setItem('undesirablesList', JSON.stringify(newList))
+        return newList
+      })
+    }
+  }
+  
+  // Toggle user lists panel
+  const toggleUserLists = () => {
+    setShowUserLists(prev => !prev)
   }
   
   // Sanitize text to prevent XSS
@@ -534,10 +683,31 @@ function App() {
   }
   
   return (
-    <div className={`app-container ${darkTheme ? 'dark' : 'light'}`}>
+    <div className={`app-container ${darkTheme ? 'dark-theme' : 'light-theme'}`}>
       <Notifications 
         notifications={notifications} 
         removeNotification={removeNotification} 
+      />
+      
+      {/* Toggle button for user lists */}
+      <button 
+        id="toggleUserLists" 
+        className="btn btn-primary position-fixed top-0 end-0 m-3"
+        onClick={toggleUserLists}
+      >
+        <i className="bi bi-people-fill me-2"></i>Manage User Lists
+      </button>
+      
+      {/* User Lists Panel */}
+      <UserLists 
+        friendsList={friendsList}
+        undesirablesList={undesirablesList}
+        removeFriend={removeFriend}
+        removeUndesirable={removeUndesirable}
+        addToFriendsList={addToFriendsList}
+        addToUndesirablesList={addToUndesirablesList}
+        showUserLists={showUserLists}
+        toggleUserLists={toggleUserLists}
       />
       
       <header className="app-header">
@@ -555,7 +725,7 @@ function App() {
             
             <Settings 
               darkTheme={darkTheme}
-              setDarkTheme={setDarkTheme}
+              setDarkTheme={handleThemeChange}
               showModeration={showModeration}
               setShowModeration={setShowModeration}
               showAIResponses={showAIResponses}
@@ -618,13 +788,6 @@ function App() {
           </div>
           
           <div className="side-panel">
-            <UserLists 
-              friendsList={friendsList}
-              undesirablesList={undesirablesList}
-              removeFriend={removeFriend}
-              removeUndesirable={removeUndesirable}
-            />
-            
             {showModeration && (
               <ModerationStats moderationStats={moderationStats} />
             )}

@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.14",
+    "bootstrap": "^5.3.3",
+    "bootstrap-icons": "^1.11.3",
     "flv.js": "^1.6.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
