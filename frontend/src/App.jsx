@@ -247,7 +247,12 @@ function App() {
   const disconnect = () => {
     // Properly disconnect from the socket
     if (connectionRef.current) {
-      // The socket.io connection will remain active
+      // Disconnect the socket before resetting state
+      if (connectionRef.current.socket) {
+        console.log('Disconnecting socket...');
+        connectionRef.current.socket.disconnect();
+      }
+      
       // Just reset our state
       connectionRef.current.isConnected = false;
       connectionRef.current.uniqueId = null;
@@ -261,6 +266,8 @@ function App() {
     setViewerCount(0)
     setLikeCount(0)
     setDiamondsCount(0)
+    //reload the page
+    window.location.reload();
   }
   
   const setupEventListeners = () => {
@@ -397,6 +404,11 @@ function App() {
     conn.on('member', (data) => {
       const userStatus = checkUserStatus(data)
       
+      // Show notification if the user is a friend or undesirable
+      if (userStatus.isFriend || userStatus.isUndesirable) {
+        showUserJoinNotification(data, userStatus);
+      }
+      
       setChatMessages(prevMessages => {
         const newMessages = [...prevMessages, {...data, type: 'join', userStatus}]
         if (newMessages.length > 1000) {
@@ -422,8 +434,19 @@ function App() {
   
   const checkUserStatus = (data) => {
     // Check if user is in friends or undesirables list
-    const isFriend = friendsList.some(friend => friend.tiktokId === data.userId)
-    const isUndesirable = undesirablesList.some(undesirable => undesirable.tiktokId === data.userId)
+    // userId from chat messages will match with tiktokId in our lists
+    console.log(data)
+    const userId = data.uniqueId;
+
+    console.log(undesirablesList);
+    
+    // Handle both snake_case (from DB) and camelCase (from transformed data)
+    const isFriend = friendsList.some(friend => friend.tiktok_id === userId);
+    
+    const isUndesirable = undesirablesList.some(undesirable => undesirable.tiktok_id === userId);
+
+    console.log(userId+" is friend: "+isFriend)
+    console.log(userId+" is undesirable: "+isUndesirable)
     
     return {
       isFriend,
@@ -465,8 +488,9 @@ function App() {
   const loadUserLists = async () => {
     try {
       const data = await UserApi.loadUserLists()
-      setFriendsList(data.friendsList || [])
-      setUndesirablesList(data.undesirablesList || [])
+      // The API returns {friendsList, undesirablesList}, ensure we extract arrays
+      setFriendsList(Array.isArray(data.friendsList) ? data.friendsList : [])
+      setUndesirablesList(Array.isArray(data.undesirablesList) ? data.undesirablesList : [])
     } catch (error) {
       console.error('Error loading user lists:', error)
       
@@ -497,8 +521,9 @@ function App() {
   // Add user to friends list
   const addToFriendsList = async (userId, nickname) => {
     try {
-      const updatedList = await UserApi.addToFriendsList(userId, nickname)
-      setFriendsList(updatedList)
+      const response = await UserApi.addToFriendsList(userId, nickname)
+      // API now directly returns the updated array
+      setFriendsList(response || [])
     } catch (error) {
       console.error('Error adding friend:', error)
       
@@ -532,8 +557,14 @@ function App() {
   // Add user to undesirables list
   const addToUndesirablesList = async (userId, nickname, reason = '') => {
     try {
-      const updatedList = await UserApi.addToUndesirablesList(userId, nickname, reason)
-      setUndesirablesList(updatedList)
+      if(reason == ""){
+        //ask for reason in a input box
+         reason = prompt("Enter reason for adding to undesirables list")
+      }
+      // Remove the prompt and let the UserLists component handle collecting the reason
+      const response = await UserApi.addToUndesirablesList(userId, nickname, reason)
+      // API now directly returns the updated array
+      setUndesirablesList(response || [])
     } catch (error) {
       console.error('Error adding undesirable:', error)
       
@@ -568,8 +599,9 @@ function App() {
   // Remove user from friends list
   const removeFriend = async (userId) => {
     try {
-      const updatedList = await UserApi.removeFriend(userId)
-      setFriendsList(updatedList)
+      const response = await UserApi.removeFriend(userId)
+      // API now directly returns the updated array
+      setFriendsList(response || [])
     } catch (error) {
       console.error('Error removing friend:', error)
       
@@ -585,8 +617,9 @@ function App() {
   // Remove user from undesirables list
   const removeUndesirable = async (userId) => {
     try {
-      const updatedList = await UserApi.removeUndesirable(userId)
-      setUndesirablesList(updatedList)
+      const response = await UserApi.removeUndesirable(userId)
+      // API now directly returns the updated array
+      setUndesirablesList(response || [])
     } catch (error) {
       console.error('Error removing undesirable:', error)
       
@@ -678,6 +711,48 @@ function App() {
     if ('Notification' in window) {
       Notification.requestPermission().then(permission => {
         console.log('Notification permission:', permission);
+      });
+    }
+  }
+  
+  // Function to show user join notification
+  const showUserJoinNotification = (data, userStatus) => {
+    // Determine user type for notification
+    let userType = '';
+    let notificationType = '';
+    
+    if (userStatus.isFriend) {
+      userType = 'Friend';
+      notificationType = 'friend-join';
+    } else if (userStatus.isUndesirable) {
+      userType = 'Undesirable';
+      notificationType = 'undesirable-join';
+    } else {
+      // Not a special user, don't show notification
+      return;
+    }
+    
+    // Add to notifications
+    const notification = {
+      id: Date.now(),
+      type: notificationType,
+      title: `${userType} ${data.uniqueId} joined the stream`,
+      message: `${data.uniqueId} has joined the stream`,
+      timestamp: new Date()
+    };
+    
+    setNotifications(prev => [...prev, notification]);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+      removeNotification(notification.id);
+    }, 5000);
+    
+    // Try to show browser notification if permission is granted
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(`${userType} ${data.uniqueId} joined`, {
+        body: `${data.uniqueId} has joined the stream`,
+        icon: '/favicon.ico'
       });
     }
   }

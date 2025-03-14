@@ -4,6 +4,24 @@ const API_BASE_URL = window.location.hostname === 'localhost'
     : '/api';
 
 /**
+ * Transform snake_case database fields to camelCase
+ * @param {Object} item - The item with snake_case fields
+ * @returns {Object} - The item with camelCase fields
+ */
+const transformUserData = (item) => {
+  return {
+    id: item.id,
+    tiktokId: item.tiktok_id,
+    nickname: item.nickname,
+    firstSeen: item.first_seen,
+    lastSeen: item.last_seen,
+    addedAt: item.added_at,
+    reason: item.reason || '', // Only for undesirables
+    // Add additional fields as needed
+  };
+};
+
+/**
  * Search for users in the database
  * @param {string} query - The search query
  * @returns {Promise<Array>} - The search results
@@ -14,7 +32,9 @@ export const searchUsers = async (query) => {
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
     }
-    return await response.json();
+    const results = await response.json();
+    // No transformation needed for search results since they're directly used with the db field names
+    return results;
   } catch (error) {
     console.error('Error searching users:', error);
     throw error;
@@ -41,8 +61,13 @@ export const loadUserLists = async () => {
       throw new Error(`HTTP error loading undesirables: ${undesirableResponse.status}`);
     }
     
-    const friends = await friendsResponse.json();
-    const undesirables = await undesirableResponse.json();
+    // These responses are direct arrays from the server
+    const friendsData = await friendsResponse.json();
+    const undesirableData = await undesirableResponse.json();
+    
+    // Transform the data to match frontend expected schema
+    const friends = friendsData.map(transformUserData);
+    const undesirables = undesirableData.map(transformUserData);
     
     return {
       friendsList: friends,
@@ -55,13 +80,14 @@ export const loadUserLists = async () => {
 };
 
 /**
- * Add a user to the friends list
+ * Add a user to the friends list and fetch the updated list
  * @param {string} tiktokId - The TikTok ID of the user
  * @param {string} nickname - The nickname of the user
- * @returns {Promise<Object>} - The updated friends list
+ * @returns {Promise<Array>} - The updated friends list
  */
 export const addToFriendsList = async (tiktokId, nickname) => {
   try {
+    // Add the friend
     const response = await fetch(`${API_BASE_URL}/users/friends`, {
       method: 'POST',
       headers: {
@@ -74,7 +100,15 @@ export const addToFriendsList = async (tiktokId, nickname) => {
       throw new Error(`HTTP error: ${response.status}`);
     }
     
-    return await response.json();
+    // After adding successfully, fetch the updated list
+    const updatedListResponse = await fetch(`${API_BASE_URL}/users/friends`);
+    if (!updatedListResponse.ok) {
+      throw new Error(`HTTP error: ${updatedListResponse.status}`);
+    }
+    
+    const friendsData = await updatedListResponse.json();
+    // Transform the data to match frontend expected schema
+    return friendsData.map(transformUserData);
   } catch (error) {
     console.error('Error adding friend:', error);
     throw error;
@@ -82,12 +116,13 @@ export const addToFriendsList = async (tiktokId, nickname) => {
 };
 
 /**
- * Remove a user from the friends list
+ * Remove a user from the friends list and fetch the updated list
  * @param {string} tiktokId - The TikTok ID of the user
- * @returns {Promise<Object>} - The updated friends list
+ * @returns {Promise<Array>} - The updated friends list
  */
 export const removeFriend = async (tiktokId) => {
   try {
+    // Remove the friend
     const response = await fetch(`${API_BASE_URL}/users/friends/${tiktokId}`, {
       method: 'DELETE',
     });
@@ -96,7 +131,15 @@ export const removeFriend = async (tiktokId) => {
       throw new Error(`HTTP error: ${response.status}`);
     }
     
-    return await response.json();
+    // After removing successfully, fetch the updated list
+    const updatedListResponse = await fetch(`${API_BASE_URL}/users/friends`);
+    if (!updatedListResponse.ok) {
+      throw new Error(`HTTP error: ${updatedListResponse.status}`);
+    }
+    
+    const friendsData = await updatedListResponse.json();
+    // Transform the data to match frontend expected schema
+    return friendsData.map(transformUserData);
   } catch (error) {
     console.error('Error removing friend:', error);
     throw error;
@@ -104,14 +147,15 @@ export const removeFriend = async (tiktokId) => {
 };
 
 /**
- * Add a user to the undesirables list
+ * Add a user to the undesirables list and fetch the updated list
  * @param {string} tiktokId - The TikTok ID of the user
  * @param {string} nickname - The nickname of the user
  * @param {string} reason - The reason for adding to undesirables
- * @returns {Promise<Object>} - The updated undesirables list
+ * @returns {Promise<Array>} - The updated undesirables list
  */
 export const addToUndesirablesList = async (tiktokId, nickname, reason = '') => {
   try {
+    // Add the undesirable
     const response = await fetch(`${API_BASE_URL}/users/undesirables`, {
       method: 'POST',
       headers: {
@@ -124,7 +168,15 @@ export const addToUndesirablesList = async (tiktokId, nickname, reason = '') => 
       throw new Error(`HTTP error: ${response.status}`);
     }
     
-    return await response.json();
+    // After adding successfully, fetch the updated list
+    const updatedListResponse = await fetch(`${API_BASE_URL}/users/undesirables`);
+    if (!updatedListResponse.ok) {
+      throw new Error(`HTTP error: ${updatedListResponse.status}`);
+    }
+    
+    const undesirableData = await updatedListResponse.json();
+    // Transform the data to match frontend expected schema
+    return undesirableData.map(transformUserData);
   } catch (error) {
     console.error('Error adding undesirable:', error);
     throw error;
@@ -132,12 +184,13 @@ export const addToUndesirablesList = async (tiktokId, nickname, reason = '') => 
 };
 
 /**
- * Remove a user from the undesirables list
+ * Remove a user from the undesirables list and fetch the updated list
  * @param {string} tiktokId - The TikTok ID of the user
- * @returns {Promise<Object>} - The updated undesirables list
+ * @returns {Promise<Array>} - The updated undesirables list
  */
 export const removeUndesirable = async (tiktokId) => {
   try {
+    // Remove the undesirable
     const response = await fetch(`${API_BASE_URL}/users/undesirables/${tiktokId}`, {
       method: 'DELETE',
     });
@@ -146,7 +199,15 @@ export const removeUndesirable = async (tiktokId) => {
       throw new Error(`HTTP error: ${response.status}`);
     }
     
-    return await response.json();
+    // After removing successfully, fetch the updated list
+    const updatedListResponse = await fetch(`${API_BASE_URL}/users/undesirables`);
+    if (!updatedListResponse.ok) {
+      throw new Error(`HTTP error: ${updatedListResponse.status}`);
+    }
+    
+    const undesirableData = await updatedListResponse.json();
+    // Transform the data to match frontend expected schema
+    return undesirableData.map(transformUserData);
   } catch (error) {
     console.error('Error removing undesirable:', error);
     throw error;

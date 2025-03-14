@@ -21,24 +21,26 @@ const ChatContainer = ({
   }, [chatMessages, autoScroll])
   
   return (
-    <div className="chat-container" ref={chatContainerRef}>
-      {chatMessages.map((msg, index) => (
-        <ChatMessage 
-          key={`msg-${index}`}
-          message={msg}
-          showModeration={showModeration}
-          showAIResponses={showAIResponses}
-          addToFriendsList={addToFriendsList}
-          addToUndesirablesList={addToUndesirablesList}
-        />
-      ))}
-      
-      {showAIResponses && isGeneratingResponse && (
-        <div className="ai-loading-indicator">
-          <span>AI is generating response...</span>
-          <div className="loading-spinner"></div>
-        </div>
-      )}
+    <div className="chat-container">
+      <div className="chat-messages" ref={chatContainerRef}>
+        {chatMessages.map((msg, index) => (
+          <ChatMessage 
+            key={`msg-${index}`}
+            message={msg}
+            showModeration={showModeration}
+            showAIResponses={showAIResponses}
+            addToFriendsList={addToFriendsList}
+            addToUndesirablesList={addToUndesirablesList}
+          />
+        ))}
+        
+        {showAIResponses && isGeneratingResponse && (
+          <div className="ai-loading-indicator">
+            <span>AI is generating response...</span>
+            <div className="loading-spinner"></div>
+          </div>
+        )}
+      </div>
       
       <div className="chat-controls">
         <div className="auto-scroll-toggle">
@@ -56,7 +58,7 @@ const ChatContainer = ({
                 }
               }} 
             />
-            Auto-scroll
+            <span>Auto-scroll</span>
           </label>
         </div>
         
@@ -69,7 +71,7 @@ const ChatContainer = ({
               }
             }}
           >
-            Jump to Latest
+            <i className="bi bi-arrow-down-circle"></i> Jump to Latest
           </button>
         )}
       </div>

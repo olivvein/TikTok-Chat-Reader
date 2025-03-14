@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { searchUsers } from '../utils/UserApi';
 
 const UserLists = ({ 
-  friendsList, 
-  undesirablesList, 
+  friendsList = [], 
+  undesirablesList = [], 
   removeFriend, 
   removeUndesirable,
   addToFriendsList,
@@ -11,6 +11,10 @@ const UserLists = ({
   showUserLists,
   toggleUserLists
 }) => {
+  // Ensure lists are always arrays
+  const friends = Array.isArray(friendsList) ? friendsList : [];
+  const undesirables = Array.isArray(undesirablesList) ? undesirablesList : [];
+  
   const [activeTab, setActiveTab] = useState('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -18,6 +22,8 @@ const UserLists = ({
   const [searchError, setSearchError] = useState('');
   const [undesirableReason, setUndesirableReason] = useState('');
   const [userToAddAsUndesirable, setUserToAddAsUndesirable] = useState(null);
+  const [quickRemoveQuery, setQuickRemoveQuery] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState({ friends: [], undesirables: [] });
 
   // Handle search functionality
   const handleSearch = async () => {
@@ -49,9 +55,13 @@ const UserLists = ({
   
   const confirmAddUndesirable = () => {
     if (userToAddAsUndesirable) {
+      // Support both property naming conventions
+      const tiktokId = userToAddAsUndesirable.tiktokId || userToAddAsUndesirable.tiktok_id;
+      const nickname = userToAddAsUndesirable.nickname;
+      
       addToUndesirablesList(
-        userToAddAsUndesirable.tiktok_id, 
-        userToAddAsUndesirable.nickname, 
+        tiktokId, 
+        nickname, 
         undesirableReason
       );
       setUserToAddAsUndesirable(null);
@@ -62,6 +72,41 @@ const UserLists = ({
   const cancelAddUndesirable = () => {
     setUserToAddAsUndesirable(null);
     setUndesirableReason('');
+  };
+
+  // Handle quick remove functionality
+  const handleQuickRemoveSearch = (query) => {
+    setQuickRemoveQuery(query);
+    
+    if (!query.trim()) {
+      setFilteredUsers({ friends: [], undesirables: [] });
+      return;
+    }
+    
+    const queryLower = query.toLowerCase();
+    
+    // Filter friends list
+    const filteredFriends = friends.filter(friend => 
+      friend.nickname.toLowerCase().includes(queryLower) || 
+      friend.tiktokId.toLowerCase().includes(queryLower)
+    );
+    
+    // Filter undesirables list
+    const filteredUndesirables = undesirables.filter(undesirable => 
+      undesirable.nickname.toLowerCase().includes(queryLower) || 
+      undesirable.tiktokId.toLowerCase().includes(queryLower)
+    );
+    
+    setFilteredUsers({
+      friends: filteredFriends,
+      undesirables: filteredUndesirables
+    });
+  };
+
+  const handleQuickRemoveKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleQuickRemoveSearch(quickRemoveQuery);
+    }
   };
 
   return (
@@ -105,6 +150,15 @@ const UserLists = ({
                 Search
               </button>
             </li>
+            <li className="nav-item" role="presentation">
+              <button 
+                className={`nav-link ${activeTab === 'quickRemove' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('quickRemove')}
+                role="tab"
+              >
+                Quick Remove
+              </button>
+            </li>
           </ul>
           
           <div className="tab-content">
@@ -112,10 +166,10 @@ const UserLists = ({
             <div className={`tab-pane ${activeTab === 'friends' ? 'show active' : ''}`} role="tabpanel">
               <h3>Friends List</h3>
               <div className="user-list">
-                {friendsList.length === 0 ? (
+                {friends.length === 0 ? (
                   <div className="empty-list-message">No friends in the list</div>
                 ) : (
-                  friendsList.map((friend, index) => (
+                  friends.map((friend, index) => (
                     <div key={`friend-${index}`} className="user-list-item card mb-2">
                       <div className="card-body">
                         <div className="user-info">
@@ -157,10 +211,10 @@ const UserLists = ({
             <div className={`tab-pane ${activeTab === 'undesirables' ? 'show active' : ''}`} role="tabpanel">
               <h3>Undesirables List</h3>
               <div className="user-list">
-                {undesirablesList.length === 0 ? (
+                {undesirables.length === 0 ? (
                   <div className="empty-list-message">No undesirables in the list</div>
                 ) : (
-                  undesirablesList.map((undesirable, index) => (
+                  undesirables.map((undesirable, index) => (
                     <div key={`undesirable-${index}`} className="user-list-item card mb-2">
                       <div className="card-body">
                         <div className="user-info">
@@ -240,26 +294,35 @@ const UserLists = ({
                   <div className="empty-list-message">No results found</div>
                 ) : (
                   searchResults.map((user, index) => {
-                    const isFriend = friendsList.some(f => f.tiktokId === user.tiktok_id);
-                    const isUndesirable = undesirablesList.some(u => u.tiktokId === user.tiktok_id);
+                    // Support both snake_case and camelCase property names
+                    const tiktokId = user.tiktokId || user.tiktok_id;
+                    const nickname = user.nickname;
+                    
+                    // Check if the user is in either list
+                    const isFriend = friends.some(f => 
+                      (f.tiktokId === tiktokId) || (f.tiktok_id === tiktokId)
+                    );
+                    const isUndesirable = undesirables.some(u => 
+                      (u.tiktokId === tiktokId) || (u.tiktok_id === tiktokId)
+                    );
                     
                     return (
                       <div key={`search-${index}`} className="user-list-item card mb-2">
                         <div className="card-body">
                           <div className="user-info">
                             <a 
-                              href={`https://www.tiktok.com/@${user.tiktok_id}`} 
+                              href={`https://www.tiktok.com/@${tiktokId}`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="user-nickname"
                             >
-                              {user.nickname}
+                              {nickname}
                             </a>
-                            <span className="user-id">@{user.tiktok_id}</span>
-                            {user.is_friend && (
+                            <span className="user-id">@{tiktokId}</span>
+                            {(user.is_friend || isFriend) && (
                               <span className="user-status friend badge bg-primary ms-2">Friend</span>
                             )}
-                            {user.is_undesirable && (
+                            {(user.is_undesirable || isUndesirable) && (
                               <span className="user-status undesirable badge bg-danger ms-2">Undesirable</span>
                             )}
                             {user.last_seen && (
@@ -273,29 +336,48 @@ const UserLists = ({
                               <>
                                 <button 
                                   className="btn btn-sm btn-outline-primary me-2"
-                                  onClick={() => addToFriendsList(user.tiktok_id, user.nickname)}
+                                  onClick={() => addToFriendsList(tiktokId, nickname)}
                                 >
                                   Add to Friends
                                 </button>
                                 <button 
                                   className="btn btn-sm btn-outline-danger"
-                                  onClick={() => openAddUndesirableModal(user)}
+                                  onClick={() => openAddUndesirableModal({
+                                    tiktok_id: tiktokId,
+                                    nickname: nickname
+                                  })}
                                 >
                                   Add to Undesirables
                                 </button>
                               </>
                             )}
                             {isFriend && (
-                              <span className="text-success">
-                                <i className="bi bi-check-circle-fill me-1"></i>
-                                Already in Friends List
-                              </span>
+                              <div className="d-flex align-items-center">
+                                <span className="text-success me-2">
+                                  <i className="bi bi-check-circle-fill me-1"></i>
+                                  In Friends List
+                                </span>
+                                <button 
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={() => removeFriend(tiktokId)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             )}
                             {isUndesirable && (
-                              <span className="text-danger">
-                                <i className="bi bi-x-circle-fill me-1"></i>
-                                Already in Undesirables List
-                              </span>
+                              <div className="d-flex align-items-center">
+                                <span className="text-danger me-2">
+                                  <i className="bi bi-x-circle-fill me-1"></i>
+                                  In Undesirables List
+                                </span>
+                                <button 
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={() => removeUndesirable(tiktokId)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -304,6 +386,102 @@ const UserLists = ({
                   })
                 )}
               </div>
+            </div>
+
+            {/* Quick Remove Tab */}
+            <div className={`tab-pane ${activeTab === 'quickRemove' ? 'show active' : ''}`} role="tabpanel">
+              <h3>Quick Remove Users</h3>
+              <div className="input-group mb-3">
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Search users to remove..." 
+                  value={quickRemoveQuery}
+                  onChange={(e) => handleQuickRemoveSearch(e.target.value)}
+                  onKeyPress={handleQuickRemoveKeyPress}
+                />
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => handleQuickRemoveSearch(quickRemoveQuery)}
+                >
+                  <i className="bi bi-search me-1"></i>
+                  Filter
+                </button>
+              </div>
+
+              {/* Friends section */}
+              {filteredUsers.friends.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-primary">
+                    <i className="bi bi-people-fill me-2"></i>
+                    Friends ({filteredUsers.friends.length})
+                  </h4>
+                  <div className="list-group">
+                    {filteredUsers.friends.map((friend, index) => (
+                      <div key={`quick-friend-${index}`} className="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong>{friend.nickname}</strong>
+                          <span className="text-muted ms-2">@{friend.tiktokId}</span>
+                        </div>
+                        <div>
+                          <button 
+                            className="btn btn-sm btn-danger"
+                            onClick={() => removeFriend(friend.tiktokId)}
+                          >
+                            <i className="bi bi-trash me-1"></i>
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Undesirables section */}
+              {filteredUsers.undesirables.length > 0 && (
+                <div>
+                  <h4 className="text-danger">
+                    <i className="bi bi-person-x-fill me-2"></i>
+                    Undesirables ({filteredUsers.undesirables.length})
+                  </h4>
+                  <div className="list-group">
+                    {filteredUsers.undesirables.map((undesirable, index) => (
+                      <div key={`quick-undesirable-${index}`} className="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong>{undesirable.nickname}</strong>
+                          <span className="text-muted ms-2">@{undesirable.tiktokId}</span>
+                          {undesirable.reason && (
+                            <span className="badge bg-danger ms-2">{undesirable.reason}</span>
+                          )}
+                        </div>
+                        <div>
+                          <button 
+                            className="btn btn-sm btn-danger"
+                            onClick={() => removeUndesirable(undesirable.tiktokId)}
+                          >
+                            <i className="bi bi-trash me-1"></i>
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {quickRemoveQuery && filteredUsers.friends.length === 0 && filteredUsers.undesirables.length === 0 && (
+                <div className="alert alert-info">
+                  No users found matching "{quickRemoveQuery}"
+                </div>
+              )}
+
+              {!quickRemoveQuery && (
+                <div className="text-center text-muted my-4">
+                  <i className="bi bi-search" style={{ fontSize: '3rem' }}></i>
+                  <p className="mt-3">Type a username to find users to remove</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
