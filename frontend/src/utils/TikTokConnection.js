@@ -9,6 +9,8 @@ class TikTokConnection {
         this.socket = io(backendUrl);
         this.uniqueId = null;
         this.options = null;
+        this.streamUrl = null;
+        this.isConnected = false;
 
         this.socket.on('connect', () => {
             console.info("Socket connected!");
@@ -21,17 +23,22 @@ class TikTokConnection {
 
         this.socket.on('disconnect', () => {
             console.warn("Socket disconnected!");
+            this.isConnected = false;
         });
 
         this.socket.on('streamEnd', () => {
             console.warn("LIVE has ended!");
             this.uniqueId = null;
+            this.isConnected = false;
+            this.streamUrl = null;
         });
 
         this.socket.on('tiktokDisconnected', (errMsg) => {
             console.warn(errMsg);
             if (errMsg && errMsg.includes('LIVE has ended')) {
                 this.uniqueId = null;
+                this.isConnected = false;
+                this.streamUrl = null;
             }
         });
     }
@@ -43,7 +50,22 @@ class TikTokConnection {
         this.setUniqueId();
 
         return new Promise((resolve, reject) => {
-            this.socket.once('tiktokConnected', resolve);
+            this.socket.once('tiktokConnected', (state, data) => {
+                console.log('Connected to room', state.roomId);
+                
+                // Store stream URL if available
+                if (state.roomInfo && state.roomInfo.stream_url && state.roomInfo.stream_url.flv_pull_url) {
+                    this.streamUrl = state.roomInfo.stream_url.flv_pull_url.SD1;
+                    console.log('Stream URL:', this.streamUrl);
+                } else {
+                    console.warn('No stream URL available in roomInfo');
+                    this.streamUrl = null;
+                }
+                
+                this.isConnected = true;
+                resolve(state, data);
+            });
+            
             this.socket.once('tiktokDisconnected', reject);
 
             setTimeout(() => {
@@ -58,6 +80,10 @@ class TikTokConnection {
 
     on(eventName, eventHandler) {
         this.socket.on(eventName, eventHandler);
+    }
+    
+    getStreamUrl() {
+        return this.streamUrl;
     }
 }
 
